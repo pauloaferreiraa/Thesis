@@ -30,13 +30,21 @@ sensorOnVal = 0x7F02
 sensorOn = struct.pack("BB", (sensorOnVal >> 8) & 0xFF, sensorOnVal & 0xFF)
 sensorOff = struct.pack("BB", 0x00, 0x00)
 
-if len(sys.argv) != 2:
-  print "Fatal, must pass device address:", sys.argv[0], "<device address>"
+if len(sys.argv) != 3:
+  print "Fatal, must pass label and time in seconds: <label> <time>"
   quit()
 
+sensorLeft = '24:71:89:BB:FA:00'
+sensorRight = '24:71:89:C0:BC:84'
+label = sys.argv[1]
+time_read = float(sys.argv[2])
+
 try:
-  print "Info, trying to connect to:", sys.argv[1]
-  p = Peripheral(sys.argv[1])
+  print "Info, trying to connect to:", sensorLeft
+  l = Peripheral(sensorLeft)
+  print "Info, trying to connect to:", sensorRight
+  r = Peripheral(sensorRight)
+
 
 except BTLEException:
   print "Fatal, unable to connect!"
@@ -50,38 +58,51 @@ else:
 
   try:
     print "Info, connected and turning sensor on!"
-    ch = p.getCharacteristics(uuid=config_uuid)[0]
-    ch.write(sensorOn, withResponse=True)
+    lh = l.getCharacteristics(uuid=config_uuid)[0]
+    lh.write(sensorOn, withResponse=True)
+
+    rh = r.getCharacteristics(uuid=config_uuid)[0]
+    rh.write(sensorOn, withResponse=True)
     
     print "Info, reading values!"
-    ch = p.getCharacteristics(uuid=data_uuid)[0]
+    lh = l.getCharacteristics(uuid=data_uuid)[0]
+    rh = r.getCharacteristics(uuid=data_uuid)[0]
 
-    t_end = time.time() + 60 * 0.5
+    t_end = time.time() + time_read
+
+    file_accelerometer = open("quite_accelerometer_pf.csv","w")
 
     while time.time() < t_end:
-      rawVals = ch.read()
-      print "Raw:",
-      for rawVal in rawVals:
-        temp = ord(rawVal)
-        print "%2.2x" % temp,
-      print 
+      rawValsL = lh.read()
+      rawValsR = rh.read()
+
       
+      #for rawVal in rawValsL:
+        #temp = ord(rawVal)
+        #print "%2.2x" % temp,
+    
+
       # Movement data: 9 bytes made up of x, y and z for Gyro, Accelerometer, 
       # and Magnetometer.  Raw values must be divided by scale
-      (gyroX, gyroY, gyroZ, accX, accY, accZ, magX, magY, magZ) = struct.unpack('<hhhhhhhhh', rawVals)
-      
-      scale = 128.0
-      print "Gyro - x: %2.2f, y: %2.2f, z: %2.2f" % (gyroX / scale, gyroY / scale, gyroZ / scale)
+      (gyroX, gyroY, gyroZ, accX, accY, accZ, magX, magY, magZ) = struct.unpack('<hhhhhhhhh', rawValsL)
+      (gyroXR, gyroYR, gyroZR, accXR, accYR, accZR, magXR, magYR, magZR) = struct.unpack('<hhhhhhhhh', rawValsR)
+
+
+      #scale = 128.0
+      #print "Gyro - x: %2.2f, y: %2.2f, z: %2.2f" % (gyroX / scale, gyroY / scale, gyroZ / scale)
       
       scale = 4096.0
-      print "Acc - x: %2.2f, y: %2.2f, z: %2.2f" % (accX / scale, accY / scale, accZ / scale)
+      file_accelerometer.write("%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%s\n" % (accX / scale, accY / scale, accZ / scale, \
+        accXR / scale, accYR / scale, accZR / scale,label))
 
-      scale = (32768.0 / 4912.0)
-      print "Mag - x: %2.2f, y: %2.2f, z: %2.2f" % (magX / scale, magY / scale, magZ / scale)
+      #scale = (32768.0 / 4912.0)
+      #print "Mag - x: %2.2f, y: %2.2f, z: %2.2f" % (magX / scale, magY / scale, magZ / scale)
     
     print "Info, turning sensor off!"
-    ch = p.getCharacteristics(uuid=config_uuid)[0]
-    ch.write(sensorOff, withResponse=True)
+    lh = l.getCharacteristics(uuid=config_uuid)[0]
+    lh.write(sensorOff, withResponse=True)
+    rh = r.getCharacteristics(uuid=config_uuid)[0]
+    rh.write(sensorOff, withResponse=True)
     
   except:
     print "Fatal, unexpected error!"
@@ -90,7 +111,8 @@ else:
 
   finally:
     print "Info, disconnecting!"
-    p.disconnect()
+    l.disconnect()
+    r.disconnect()
     
 finally:
   quit()
