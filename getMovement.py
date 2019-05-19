@@ -45,10 +45,10 @@ time_read = float(sys.argv[2])
 try:
   print ("Info, trying to connect to left:", sensorLeft)
   l = Peripheral(sensorLeft)
-  #print ("Info, trying to connect to right:", sensorRight)
-  #r = Peripheral(sensorRight)
-  #print ("Info, trying to connect to chest:", sensorChest)
-  #c = Peripheral(sensorChest)
+  print ("Info, trying to connect to right:", sensorRight)
+  r = Peripheral(sensorRight)
+  print ("Info, trying to connect to chest:", sensorChest)
+  c = Peripheral(sensorChest)
 
 
 except BTLEException:
@@ -66,16 +66,16 @@ else:
     lh = l.getCharacteristics(uuid=config_uuid)[0]
     lh.write(sensorOn, withResponse=True)
 
-    #rh = r.getCharacteristics(uuid=config_uuid)[0]
-    #rh.write(sensorOn, withResponse=True)
+    rh = r.getCharacteristics(uuid=config_uuid)[0]
+    rh.write(sensorOn, withResponse=True)
 
-    #ch = c.getCharacteristics(uuid=config_uuid)[0]
-    #ch.write(sensorOn, withResponse=True)
+    ch = c.getCharacteristics(uuid=config_uuid)[0]
+    ch.write(sensorOn, withResponse=True)
     
     print ("Info, reading values!")
     lh = l.getCharacteristics(uuid=data_uuid)[0]
-    #rh = r.getCharacteristics(uuid=data_uuid)[0]
-    #ch = c.getCharacteristics(uuid=data_uuid)[0]
+    rh = r.getCharacteristics(uuid=data_uuid)[0]
+    ch = c.getCharacteristics(uuid=data_uuid)[0]
 
     t_end = time.time() + time_read
 
@@ -85,8 +85,8 @@ else:
     while time.time() <= t_end:
       index = index + 1
       rawValsL = lh.read()
-      #rawValsR = rh.read()
-      #rawValsC = ch.read()
+      rawValsR = rh.read()
+      rawValsC = ch.read()
 
       
       #for rawVal in rawValsL:
@@ -97,16 +97,16 @@ else:
       # Movement data: 9 bytes made up of x, y and z for Gyro, Accelerometer, 
       # and Magnetometer.  Raw values must be divided by scale
       (gyroX, gyroY, gyroZ, accX, accY, accZ, magX, magY, magZ) = struct.unpack('<hhhhhhhhh', rawValsL)
-      #(gyroXR, gyroYR, gyroZR, accXR, accYR, accZR, magXR, magYR, magZR) = struct.unpack('<hhhhhhhhh', rawValsR)
-      #(gyroXC, gyroYC, gyroZC, accXC, accYC, accZC, magXC, magYC, magZC) = struct.unpack('<hhhhhhhhh', rawValsC)
+      (gyroXR, gyroYR, gyroZR, accXR, accYR, accZR, magXR, magYR, magZR) = struct.unpack('<hhhhhhhhh', rawValsR)
+      (gyroXC, gyroYC, gyroZC, accXC, accYC, accZC, magXC, magYC, magZC) = struct.unpack('<hhhhhhhhh', rawValsC)
 
       #scale = 128.0
       #print "Gyro - x: %2.2f, y: %2.2f, z: %2.2f" % (gyroX / scale, gyroY / scale, gyroZ / scale)
       
       scale = 4096.0
-      # data[index] = [accX / scale, accY / scale, accZ / scale, \
-      #   accXR / scale, accYR / scale, accZR / scale, accXC / scale, accYC / scale, accZC / scale, label]
-      data[index] = [accX / scale, accY / scale, accZ / scale, label]
+      data[index] = [accX / scale, accY / scale, accZ / scale, \
+         accXR / scale, accYR / scale, accZR / scale, accXC / scale, accYC / scale, accZC / scale, label]
+      #data[index] = [accX / scale, accY / scale, accZ / scale, label]
 
       #scale = (32768.0 / 4912.0)
       #print "Mag - x: %2.2f, y: %2.2f, z: %2.2f" % (magX / scale, magY / scale, magZ / scale)
@@ -115,14 +115,14 @@ else:
     print ("Info, turning sensor off!")
     lh = l.getCharacteristics(uuid=config_uuid)[0]
     lh.write(sensorOff, withResponse=True)
-    # rh = r.getCharacteristics(uuid=config_uuid)[0]
-    # rh.write(sensorOff, withResponse=True)
-    # ch = c.getCharacteristics(uuid=config_uuid)[0]
-    # ch.write(sensorOff, withResponse=True)
+    rh = r.getCharacteristics(uuid=config_uuid)[0]
+    rh.write(sensorOff, withResponse=True)
+    ch = c.getCharacteristics(uuid=config_uuid)[0]
+    ch.write(sensorOff, withResponse=True)
 
-    # for key,d in data.items():
-    #   file_accelerometer.write("%d,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%s\n" % (index, d[0], d[1], d[2], \
-    #     d[3], d[4], d[5], d[6], d[7], d[8], d[9]))
+    for key,d in data.items():
+      file_accelerometer.write("%d,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%s\n" % (index, d[0], d[1], d[2], \
+        d[3], d[4], d[5], d[6], d[7], d[8], d[9]))
   except:
     print ("Fatal, unexpected error!")
     traceback.print_exc()
