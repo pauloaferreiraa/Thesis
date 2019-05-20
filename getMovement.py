@@ -14,6 +14,7 @@ def TI_UUID(val):
 
 config_uuid = TI_UUID(0xAA82)
 data_uuid = TI_UUID(0xAA81)
+period_uuid = TI_UUID(0xAA83)
 
 data = {}
 
@@ -29,8 +30,12 @@ data = {}
 #sensorOnVal = gyroOn | magOn | accOn
 sensorOnVal = 0x7F02
 
-sensorOn = struct.pack("BB", (sensorOnVal >> 8) & 0xFF, sensorOnVal & 0xFF)
+#sensorOn = struct.pack("BB", (sensorOnVal >> 8) & 0xFF, (sensorOnVal & 0xFF))
+sensorOn = struct.pack("BB", 0x7F, 0x02)
 sensorOff = struct.pack("BB", 0x00, 0x00)
+
+period = struct.pack("B",0x0A)
+
 
 if len(sys.argv) != 3:
   print ("Fatal, must pass label and time in seconds: <label> <time>")
@@ -61,7 +66,7 @@ except:
 
 else:
 
-  try:
+  try:    
     print ("Info, connected and turning sensor on!")
     lh = l.getCharacteristics(uuid=config_uuid)[0]
     lh.write(sensorOn, withResponse=True)
@@ -73,6 +78,7 @@ else:
     ch.write(sensorOn, withResponse=True)
     
     print ("Info, reading values!")
+
     lh = l.getCharacteristics(uuid=data_uuid)[0]
     rh = r.getCharacteristics(uuid=data_uuid)[0]
     ch = c.getCharacteristics(uuid=data_uuid)[0]
@@ -96,22 +102,22 @@ else:
 
       # Movement data: 9 bytes made up of x, y and z for Gyro, Accelerometer, 
       # and Magnetometer.  Raw values must be divided by scale
-      (gyroX, gyroY, gyroZ, accX, accY, accZ, magX, magY, magZ) = struct.unpack('<hhhhhhhhh', rawValsL)
-      (gyroXR, gyroYR, gyroZR, accXR, accYR, accZR, magXR, magYR, magZR) = struct.unpack('<hhhhhhhhh', rawValsR)
-      (gyroXC, gyroYC, gyroZC, accXC, accYC, accZC, magXC, magYC, magZC) = struct.unpack('<hhhhhhhhh', rawValsC)
+      # (gyroX, gyroY, gyroZ, accX, accY, accZ, magX, magY, magZ) = struct.unpack('<hhhhhhhhh', rawValsL)
+      # (gyroXR, gyroYR, gyroZR, accXR, accYR, accZR, magXR, magYR, magZR) = struct.unpack('<hhhhhhhhh', rawValsR)
+      # (gyroXC, gyroYC, gyroZC, accXC, accYC, accZC, magXC, magYC, magZC) = struct.unpack('<hhhhhhhhh', rawValsC)
 
-      #scale = 128.0
-      #print "Gyro - x: %2.2f, y: %2.2f, z: %2.2f" % (gyroX / scale, gyroY / scale, gyroZ / scale)
+      # #scale = 128.0
+      # #print "Gyro - x: %2.2f, y: %2.2f, z: %2.2f" % (gyroX / scale, gyroY / scale, gyroZ / scale)
       
-      scale = 4096.0
-      data[index] = [accX / scale, accY / scale, accZ / scale, \
-         accXR / scale, accYR / scale, accZR / scale, accXC / scale, accYC / scale, accZC / scale, label]
-      #data[index] = [accX / scale, accY / scale, accZ / scale, label]
+      # scale = 4096.0
+      # data[index] = [accX / scale, accY / scale, accZ / scale, \
+      #    accXR / scale, accYR / scale, accZR / scale, accXC / scale, accYC / scale, accZC / scale, label]
+      # #data[index] = [accX / scale, accY / scale, accZ / scale, label]
 
-      #scale = (32768.0 / 4912.0)
-      #print "Mag - x: %2.2f, y: %2.2f, z: %2.2f" % (magX / scale, magY / scale, magZ / scale)
+      # #scale = (32768.0 / 4912.0)
+      # #print "Mag - x: %2.2f, y: %2.2f, z: %2.2f" % (magX / scale, magY / scale, magZ / scale)
     
-    print(len(data))
+    print(index)
     print ("Info, turning sensor off!")
     lh = l.getCharacteristics(uuid=config_uuid)[0]
     lh.write(sensorOff, withResponse=True)
@@ -120,9 +126,9 @@ else:
     ch = c.getCharacteristics(uuid=config_uuid)[0]
     ch.write(sensorOff, withResponse=True)
 
-    for key,d in data.items():
-      file_accelerometer.write("%d,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%s\n" % (index, d[0], d[1], d[2], \
-        d[3], d[4], d[5], d[6], d[7], d[8], d[9]))
+    # for key,d in data.items():
+    #   file_accelerometer.write("%d,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%s\n" % (index, d[0], d[1], d[2], \
+    #     d[3], d[4], d[5], d[6], d[7], d[8], d[9]))
   except:
     print ("Fatal, unexpected error!")
     traceback.print_exc()
