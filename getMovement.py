@@ -6,7 +6,7 @@
 # Values: 9 bytes x, y, z for each sensor
 # Note: Sensor values have not been validated
 #
-import struct, sys, traceback, time, threading, pprint
+import struct, sys, traceback, time, threading, pprint, csv
 from bluepy.btle import UUID, Peripheral, BTLEException
 from datetime import datetime
 
@@ -30,14 +30,19 @@ sensorOff = struct.pack("BB", 0x00, 0x00)
 
 period = struct.pack("B",0x0A)
 
-if len(sys.argv) != 3:
-    print ("Fatal, must pass label and time in seconds: <label> <time>")
+if len(sys.argv) != 4:
+    print ("Fatal, must pass label and time in seconds: <label> <time> <personName>")
     quit()
 
 label = int(sys.argv[1])
 time_read = float(sys.argv[2])
+personName = sys.argv[3]
+
+sensors_connected = 0
+e = threading.Event()
 
 def read_data(sensorName,sensorMAC):
+    global sensors_connected
     try:
         print ("Info, trying to connect to %s: %s" % (sensorName,sensorMAC))
         sensor = Peripheral(sensorMAC)
@@ -55,7 +60,18 @@ def read_data(sensorName,sensorMAC):
             sh = sensor.getCharacteristics(uuid=config_uuid)[0]
             sh.write(sensorOn, withResponse=True) 
 
-            print ("Info, reading values!")
+            tLock = threading.Lock()
+
+            with tLock:
+                sensors_connected += 1
+            e.set()
+
+            while sensors_connected < 3:    
+                e.wait()
+
+                
+
+            print ("Info, reading values on %s!" % sensorName)
 
             sh = sensor.getCharacteristics(uuid=data_uuid)[0]
 
@@ -83,6 +99,7 @@ def read_data(sensorName,sensorMAC):
             print ("Info, turning sensor %s off!" % sensorName)
             sh = sensor.getCharacteristics(uuid=config_uuid)[0]
             sh.write(sensorOff, withResponse=True)
+            sensors_connected -= 1
         except:
             print ("Fatal, unexpected error!")
             traceback.print_exc()
@@ -121,7 +138,15 @@ print("End of left thread!!")
 rThread.join()
 print("End of right thread!!")
 cThread.join()
-print("End of right thread!!")
+print("End of chest thread!!")
+
+file = "DataSets/Still_" + personName 
+
+file_name = file + ".csv"
+
+data_file = open(file_name, mode='w')
+
+data_writer = csv.writer(data_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
 for indexL in dataL.keys():
     if indexL in dataR.keys() and indexL in dataC.keys():
@@ -129,6 +154,9 @@ for indexL in dataL.keys():
         timestampR = dataR[indexL][0]
         timestampC = dataC[indexL][0]
 
-        if abs(timestampL - timestampR) <= 0.9 and abs(timestampR - timestampC) <= 0.09:
-            print("%d,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%d" % (indexL, dataL[indexL][1], dataL[indexL][2], dataL[indexL][3], \
-                dataR[indexL][1], dataR[indexL][2], dataR[indexL][3], dataC[indexL][1], dataC[indexL][2], dataC[indexL][3], dataC[indexL][4]))
+        # print('%d, %f, %f, %f' % (indexL,timestampL,timestampR,timestampC))
+        # avg_timestamp = sum([timestampL,timestampC,timestampR]) / 3
+        data_writer.writerow([indexL,dataL[indexL][1], dataL[indexL][2], dataL[indexL][3], \
+            dataR[indexL][1], dataR[indexL][2], dataR[indexL][3], dataC[indexL][1], dataC[indexL][2], dataC[indexL][3], dataC[indexL][4]])
+            # print("%d,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%2.2f,%d" % (indexL, dataL[indexL][1], dataL[indexL][2], dataL[indexL][3], \
+            #         dataR[indexL][1], dataR[indexL][2], dataR[indexL][3], dataC[indexL][1], dataC[indexL][2], dataC[indexL][3], dataC[indexL][4]))
