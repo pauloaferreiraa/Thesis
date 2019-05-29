@@ -49,6 +49,9 @@ time_read = float(sys.argv[1])
 sensors_connected = 0
 e = threading.Event()
 
+dicData = {}
+tLock = threading.Lock()
+
 def read_data(sensorName,sensorMAC):
     global sensors_connected
     try:
@@ -68,7 +71,7 @@ def read_data(sensorName,sensorMAC):
             sh = sensor.getCharacteristics(uuid=config_uuid)[0]
             sh.write(sensorOn, withResponse=True) 
 
-            tLock = threading.Lock()
+            
 
             with tLock:
                 sensors_connected += 1
@@ -102,11 +105,18 @@ def read_data(sensorName,sensorMAC):
                     (gyroX, gyroY, gyroZ, accX, accY, accZ, magX, magY, magZ) = struct.unpack('<hhhhhhhhh', rawVals)
                     scale = 4096.0
                     
+                    with tLock:
+                        if sensorName not in dicData:
+                            dicData[sensorName] = {}
+                            dicData[sensorName][index] = [accX,accY,accZ]
+                        else:
+                            dicData[sensorName][index] = [accX,accY,accZ]
+
                     data += '{\"index\": %d, \"x\": %f, \"y\": %f, \"z\": %f, \"sensor\": \"%s\"},' % (index, accX, accY, accZ, sensorName)
                 
                 data = data[:-1]
                 data += ']'
-                client.publish(topic = "TestingTopic", payload = data)
+                client.publish(topic = sensorName, payload = data)
             
             print ("Info, turning sensor %s off!" % sensorName)
             sh = sensor.getCharacteristics(uuid=config_uuid)[0]
@@ -123,6 +133,8 @@ def read_data(sensorName,sensorMAC):
     finally:
         quit()
 
+
+    
 
 sensorLeft = '24:71:89:BB:FA:00'
 sensorRight = '24:71:89:C0:BC:84'

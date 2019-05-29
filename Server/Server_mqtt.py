@@ -30,9 +30,11 @@ app = Flask(__name__)
 classes_meaning= {1:'still_hands_back',2:'still_hands_side'}
     
 
+freq = '60000U' # ~19ms, using sampling frequency is 52samples/sec
+
 def read_data(fname='all'):
     print('::::Read Data::::')
-    freq = '19230U'   # ~19ms, using sampling frequency is 52samples/sec
+       
     dt = datetime.now()
     data = pd.DataFrame()
     
@@ -43,6 +45,8 @@ def read_data(fname='all'):
         data = pd.read_csv('../Teste_dataset.csv', 
                             names=['index','xL', 'yL', 'zL', 'xR', 'yR', 'zR', 'xC', 'yC', 'zC', 'label'], 
                             header=None, index_col=0)
+
+        # print('Data.shape________ %f' % data.shape[0])
         data.index = pd.date_range(start=dt, periods=data.shape[0], freq=freq)
         dt += timedelta(hours=3)
         data_files.append(data)
@@ -53,6 +57,8 @@ def read_data(fname='all'):
         data = pd.read_csv('%s.csv' %fname, 
                    names=['index','xL', 'yL', 'zL', 'xR', 'yR', 'zR', 'xC', 'yC', 'zC', 'label'], 
                    header=None, index_col=0)
+        # print('Data.shape________ %f' % data.shape[0])       
+        
 
         data.index = pd.date_range(start='00:00:00', periods=data.shape[0], freq=freq)
     
@@ -230,12 +236,17 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     print('::::START:::: Get Advance Features ::::')
     def rms(ts): return np.sqrt(np.mean(ts**2))
 
+    print(data)
+
     wsize = int(10*wsize_sec)
+    print(wsize)
     feats = data[['xL','yL','zL']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_l')
+
+    print(feats)
+    
+    feat = data[['xR','yR','zR']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_r')
     feats = feats.join(feat)
-    feats = data[['xR','yR','zR']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_r')
-    feats = feats.join(feat)
-    feats = data[['xC','yC','zC']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_c')
+    feat = data[['xC','yC','zC']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_c')
     feats = feats.join(feat)
     feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).std().add_suffix('_std_l')
     feats = feats.join(feat)
@@ -269,6 +280,7 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     feats = feats.join(pairs_cor_)
     pairs_cor_ = data[['xC','yC','zC']].rolling(window=int(wsize/2)).corr(other=data[['xC','yC','zC']])
     feats = feats.join(pairs_cor_)
+    
     
     
     feats = feats.iloc[int(wsize*overlap)::int(wsize*overlap)] 
@@ -336,67 +348,96 @@ for wsize in win_sizes:
 
 def predict_post(data):
     
-    data = json.loads(data)
     
-    print(data)
+    global freq
 
-    freq = '19230U'
     data_frame = []
     for d in data:
-        row = [d['index'],d['x'],d['y'],d['z']]
+        row = [d[0],d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8],d[9]]
         data_frame += [row]
-    pd_data_frame = pd.DataFrame(data_frame,columns=['index','xL','yL','zL'])
+    pd_data_frame = pd.DataFrame(data_frame,columns=['index','xL','yL','zL','xR','yR','zR','xC','yC','zC'])
     pd_data_frame.index = pd.date_range(start='00:00:00', periods=pd_data_frame.shape[0], freq=freq)
 
-    #print(pd_data_frame.empty)
-    if(not pd_data_frame.empty):
-        feats = get_advanced_features_predict(pd_data_frame,2)
+    feats = get_advanced_features_predict(pd_data_frame,2)
 
-        #print(feats)
-        return svm_model.predict(feats)
-    else:
-        return 'Empty data frame'
+    
+    # print(pd_data_frame)x
+    return (knn_model.predict(feats),svm_model.predict(feats))
 
-join_data = {}
+sentData = {}
 
-def parse_data(data):
-    data = json.loads(data)
-    for d in data:
-        index = d['index']
-        sensor = d['sensor']
-        if index not in join_data:
-            join_data[index] = {}
-            if sensor not in join_data[index]:
-                join_data[index][sensor] = [d['x'], d['y'], d['z']]
-        else:
-            if sensor not in join_data[index]:
-                join_data[index][sensor] = [d['x'], d['y'], d['z']]
+def parse_data():
+    
+    # print(sentData)
+
+    jData = []
+
+    l = sentData['Left']
+    r = sentData['Right']
+    c = sentData['Chest']
+
+    
+
+    nR = 0
+    nC = 0
+    # print(len(l))
+    for n in range(0,len(l)):
+
+        if n >= len(r) or n >= len(c):
+            break
+        iL = l[n]['index']
+        iR = r[n]['index']
+        iC = c[n]['index']
+
+        if iL == iR and iL == iC:
+            
+            xL = l[n]['x']
+            yL = l[n]['y']
+            zL = l[n]['z']
+            xR = r[n]['x']
+            yR = r[n]['y']
+            zR = r[n]['z']
+            xC = c[n]['x']
+            yC = c[n]['y']
+            zC = c[n]['z']
+
+            jData += [[iL,xL,yL,zL,xR,yR,zR,xC,yC,zC]]
+
+    return jData
+            
+    
 
 
 #the callback function
 def on_connect(client, userdata, flags, rc):
     print("Connected With Result Code {}".format(rc))
-    client.subscribe("TestingTopic")
+    client.subscribe('Left')
+    client.subscribe('Right')
+    client.subscribe('Chest')
 
 def on_disconnect(client, userdata, rc):
 	print("Disconnected From Broker")
 
-
-menssages_sent = 0
-json_data = ''
-
 def on_message(client, userdata, message):
-    global menssages_sent
-    global json_data
-    menssages_sent += 1
-    
-    print(menssages_sent)
-    if menssages_sent < 4:
-        json_data += message.payload.decode()
-    else:
-        print(json_data)
-        menssages_sent = 0
-        json_data = ''
+    try:
+        # print(message.payload.decode())
+        # print(message.topic)
+        global sentData
+        # print(len(sentData.keys()))
+        if message.topic not in sentData:
+            sentData[message.topic] = json.loads(message.payload.decode())
+        
+        if len(sentData.keys()) == 3:
+            
+            jData = parse_data()
+            s = predict_post(jData)
+            # print(k)
+            print(s)
+            # print(jData)
+            print('.........')
+            sentData = {}
+    except Exception as e:
+        print(e)
 
 broker_address = "iot.eclipse.org"
 #broker_address = "test.mosquitto.org"
