@@ -116,6 +116,7 @@ def read_data(sensorName,sensorMAC):
                 
                 data = data[:-1]
                 data += ']'
+                print(data)
                 client.publish(topic = sensorName, payload = data)
             
             print ("Info, turning sensor %s off!" % sensorName)

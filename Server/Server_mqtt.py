@@ -9,7 +9,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import warnings, json
 warnings.filterwarnings('ignore')
-
+import traceback
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import label_binarize
 from sklearn.model_selection import GridSearchCV
@@ -30,7 +30,7 @@ app = Flask(__name__)
 classes_meaning= {1:'still_hands_back',2:'still_hands_side'}
     
 
-freq = '60000U' # ~19ms, using sampling frequency is 52samples/sec
+freq = '19230U' # ~19ms, using sampling frequency is 52samples/sec
 
 def read_data(fname='all'):
     print('::::Read Data::::')
@@ -224,8 +224,11 @@ def get_advanced_features(data, wsize_sec, overlap=.5):
     feats = feats.join(pairs_cor_)
     
     y = data[['label']].rolling(wsize, int(wsize/2)).apply(lambda ts: mode(ts)[0])  
-    feats = feats.iloc[int(wsize*overlap)::int(wsize*overlap)] 
+
     
+    feats = feats.iloc[int(wsize*overlap)::int(wsize*overlap)] 
+    #print(feats)
+
     y = y.iloc[int(wsize*overlap)::int(wsize*overlap)]
     print('::::END:::: Get features Advance::::')
     
@@ -236,57 +239,56 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     print('::::START:::: Get Advance Features ::::')
     def rms(ts): return np.sqrt(np.mean(ts**2))
 
-    print(data)
+    #print(data)
 
     wsize = int(10*wsize_sec)
-    print(wsize)
-    feats = data[['xL','yL','zL']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_l')
-
-    print(feats)
+    # print(data[['xL','yL','zL']].rolling(wsize,int(wsize/2)).mean())
+    feats = data[['xL','yL','zL']].rolling(wsize,wsize_sec).mean().add_suffix('_mean_l')
     
-    feat = data[['xR','yR','zR']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_r')
+    feat = data[['xR','yR','zR']].rolling(wsize,wsize_sec).mean().add_suffix('_mean_r')
     feats = feats.join(feat)
-    feat = data[['xC','yC','zC']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_c')
+    feat = data[['xC','yC','zC']].rolling(wsize,wsize_sec).mean().add_suffix('_mean_c')
     feats = feats.join(feat)
-    feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).std().add_suffix('_std_l')
+    feat = data[['xL','yL','zL']].rolling(wsize, wsize_sec).std().add_suffix('_std_l')
     feats = feats.join(feat)
-    feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).std().add_suffix('_std_r')
+    feat = data[['xR','yR','zR']].rolling(wsize, wsize_sec).std().add_suffix('_std_r')
     feats = feats.join(feat)
-    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).std().add_suffix('_std_c')
+    feat = data[['xC','yC','zC']].rolling(wsize, wsize_sec).std().add_suffix('_std_c')
     feats = feats.join(feat)
     
     
-    feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).var().add_suffix('_var_l')
+    feat = data[['xL','yL','zL']].rolling(wsize, wsize_sec).var().add_suffix('_var_l')
     feats = feats.join(feat)
-    feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).var().add_suffix('_var_r')
+    feat = data[['xR','yR','zR']].rolling(wsize, wsize_sec).var().add_suffix('_var_r')
     feats = feats.join(feat)
-    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).var().add_suffix('_var_c')
+    feat = data[['xC','yC','zC']].rolling(wsize, wsize_sec).var().add_suffix('_var_c')
     feats = feats.join(feat)
     
-    feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).apply(rms).add_suffix('_rms_l')
+    feat = data[['xL','yL','zL']].rolling(wsize, wsize_sec).apply(rms).add_suffix('_rms_l')
     feats = feats.join(feat)
-    feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).apply(rms).add_suffix('_rms_r')
+    feat = data[['xR','yR','zR']].rolling(wsize, wsize_sec).apply(rms).add_suffix('_rms_r')
     feats = feats.join(feat)
-    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).apply(rms).add_suffix('_rms_c')
+    feat = data[['xC','yC','zC']].rolling(wsize, wsize_sec).apply(rms).add_suffix('_rms_c')
     feats = feats.join(feat)
         
-    mean_mag = (data**2).sum(axis=1).rolling(wsize, int(wsize/2)).apply(lambda ts: np.sqrt(ts).mean())
+    mean_mag = (data**2).sum(axis=1).rolling(wsize, wsize_sec).apply(lambda ts: np.sqrt(ts).mean())
     mean_mag.name = 'mean_mag'
     feats = feats.join(mean_mag) 
     
-    pairs_cor_ = data[['xL','yL','zL']].rolling(window=int(wsize/2)).corr(other=data[['xL','yL','zL']])
+    pairs_cor_ = data[['xL','yL','zL']].rolling(window=wsize_sec).corr(other=data[['xL','yL','zL']])
     feats = feats.join(pairs_cor_)
-    pairs_cor_ = data[['xR','yR','zR']].rolling(window=int(wsize/2)).corr(other=data[['xR','yR','zR']])
+    pairs_cor_ = data[['xR','yR','zR']].rolling(window=wsize_sec).corr(other=data[['xR','yR','zR']])
     feats = feats.join(pairs_cor_)
-    pairs_cor_ = data[['xC','yC','zC']].rolling(window=int(wsize/2)).corr(other=data[['xC','yC','zC']])
+    pairs_cor_ = data[['xC','yC','zC']].rolling(window=wsize_sec).corr(other=data[['xC','yC','zC']])
     feats = feats.join(pairs_cor_)
     
     
-    
-    feats = feats.iloc[int(wsize*overlap)::int(wsize*overlap)] 
-
-    print('::::END:::: Get features Advance::::')
-    
+    #print(feats)
+    #feats = feats.iloc[int(wsize*overlap)::int(wsize_sec*overlap)] PORQUE????
+    feats = feats.iloc[int(wsize_sec*overlap)::int(wsize_sec*overlap)]
+    feats = feats.fillna(0)
+    print(feats)
+    print('::::END:::: Get features Advance Predict::::')
     
     return feats
 
@@ -350,7 +352,8 @@ def predict_post(data):
     
     
     global freq
-
+    print('.........')
+    # print(data)
     data_frame = []
     for d in data:
         row = [d[0],d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8],d[9]]
@@ -359,10 +362,8 @@ def predict_post(data):
     pd_data_frame.index = pd.date_range(start='00:00:00', periods=pd_data_frame.shape[0], freq=freq)
 
     feats = get_advanced_features_predict(pd_data_frame,2)
-
-    
     # print(pd_data_frame)x
-    return (knn_model.predict(feats),svm_model.predict(feats))
+    return (knn_model.predict(feats), svm_model.predict(feats))
 
 sentData = {}
 
@@ -420,7 +421,7 @@ def on_disconnect(client, userdata, rc):
 
 def on_message(client, userdata, message):
     try:
-        # print(message.payload.decode())
+        print(message.payload.decode())
         # print(message.topic)
         global sentData
         # print(len(sentData.keys()))
@@ -430,14 +431,16 @@ def on_message(client, userdata, message):
         if len(sentData.keys()) == 3:
             
             jData = parse_data()
-            s = predict_post(jData)
-            # print(k)
-            print(s)
             # print(jData)
+            k,s = predict_post(jData)
+            print(k)
+            print(s)
+            # print(sentData)
             print('.........')
             sentData = {}
     except Exception as e:
         print(e)
+        print(traceback.print_exc())
 
 broker_address = "iot.eclipse.org"
 #broker_address = "test.mosquitto.org"
