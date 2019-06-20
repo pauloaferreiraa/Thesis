@@ -9,7 +9,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import warnings, json
 warnings.filterwarnings('ignore')
-import traceback
+import traceback, time
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import label_binarize
 from sklearn.model_selection import GridSearchCV
@@ -42,7 +42,9 @@ def read_data(fname='all'):
         data_files = []
         
         #for f_id in range(1,16):
-        data = pd.read_csv('../Teste_dataset.csv', 
+        #f = '../DataSets/AllData.csv'
+        f = '../Teste_dataset.csv'
+        data = pd.read_csv(f, 
                             names=['index','xL', 'yL', 'zL', 'xR', 'yR', 'zR', 'xC', 'yC', 'zC', 'label'], 
                             header=None, index_col=0)
 
@@ -287,7 +289,7 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     #feats = feats.iloc[int(wsize*overlap)::int(wsize_sec*overlap)] PORQUE????
     feats = feats.iloc[int(wsize_sec*overlap)::int(wsize_sec*overlap)]
     feats = feats.fillna(0)
-    print(feats)
+    # print(feats)
     print('::::END:::: Get features Advance Predict::::')
     
     return feats
@@ -370,6 +372,7 @@ sentData = {}
 def parse_data():
     
     # print(sentData)
+    
 
     jData = []
 
@@ -377,7 +380,11 @@ def parse_data():
     r = sentData['Right']
     c = sentData['Chest']
 
+
     
+    # print(l)
+    # print(r)
+    # print(c)
 
     nR = 0
     nC = 0
@@ -386,6 +393,7 @@ def parse_data():
 
         if n >= len(r) or n >= len(c):
             break
+        # print(l[n])
         iL = l[n]['index']
         iR = r[n]['index']
         iC = c[n]['index']
@@ -403,6 +411,7 @@ def parse_data():
             zC = c[n]['z']
 
             jData += [[iL,xL,yL,zL,xR,yR,zR,xC,yC,zC]]
+        elif 
 
     return jData
             
@@ -419,31 +428,112 @@ def on_connect(client, userdata, flags, rc):
 def on_disconnect(client, userdata, rc):
 	print("Disconnected From Broker")
 
+queueLeft = []
+queueRight = []
+queueChest = []
+
+# push to the queue q the data d
+def push_queue(q,d):
+    global queueLeft
+    global queueChest
+    global queueRight
+
+    # print('Pushed to queue %s' % q)
+    if q == 'Left':
+        queueLeft.insert(0,d)
+    elif q == 'Right':
+        queueRight.insert(0,d)
+    else:
+        queueChest.insert(0,d)
+    
+    
+
+def pop_queue(q):
+    d = []
+
+    
+    if q == 'Left':
+        d = queueLeft.pop()
+    elif q == 'Right':
+        d = queueRight.pop()
+    else:
+        d = queueChest.pop()
+
+    return d
+
 def on_message(client, userdata, message):
     try:
-        print(message.payload.decode())
+        # print(message.payload.decode())
         # print(message.topic)
         global sentData
         # print(len(sentData.keys()))
-        if message.topic not in sentData:
-            sentData[message.topic] = json.loads(message.payload.decode())
-        
-        if len(sentData.keys()) == 3:
+        push_queue(message.topic,json.loads(message.payload.decode()))
+        dL = []
+        dR = []
+        dC = []
+        print('Left queue')
+        print(queueLeft)
+        print('Right queue')
+        print(queueRight)
+        print('Chest queue')
+        print(queueChest)
+        # try to pop the 3 queues
+        try:
+            if len(queueLeft) > 0 and len(queueRight) > 0 and len(queueChest) > 0:
+                dL = pop_queue('Left')
+                dR = pop_queue('Right')
+                dC = pop_queue('Chest')
+
+                if dL and dR and dC:
+
+                    #need to check whether the first index are equal or not
+                    iL = dL[0]['index']
+                    iR = dR[0]['index']
+                    iC = dC[0]['index']
+
+                    if iL != iR or iR != iC:
+                        
+
+                    sentData['Left'] = dL
+                    sentData['Right'] = dR
+                    sentData['Chest'] = dC
+
+                    print('Parse.....')
+                    print(sentData)
+                    jData = parse_data()
+                    print(jData)
+                    k,s = predict_post(jData)
+                    print(k)
+                    print(s)
+                    
+                    sentData = {}
             
-            jData = parse_data()
-            # print(jData)
-            k,s = predict_post(jData)
-            print(k)
-            print(s)
-            # print(sentData)
-            print('.........')
-            sentData = {}
+        except Exception as e:
+            print('Error')
+            print(e)
+
+        
+        # if message.topic not in sentData:
+        #     sentData[message.topic] = json.loads(message.payload.decode())
+        
+        # if len(sentData.keys()) == 3:
+            
+        #     jData = parse_data()
+        #     # print(len(jData))
+        #     # print(jData)
+        #     k,s = predict_post(jData)
+        #     print(k)
+        #     print(s)
+        #     # print(sentData)
+        #     print('.........')
+        #     sentData = {}
     except Exception as e:
         print(e)
         print(traceback.print_exc())
 
-broker_address = "iot.eclipse.org"
+#broker_address = "iot.eclipse.org"
 #broker_address = "test.mosquitto.org"
+broker_address = 'broker.hivemq.com'
 broker_portno = 1883
 client = mqtt.Client()
 
