@@ -20,9 +20,15 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier,
 from sklearn.neighbors import KNeighborsClassifier
 
 from scipy.stats import mode
+from scipy.fftpack import fft
+import scipy.fftpack
 
 from flask import Flask
 from flask import request
+
+import linecache
+import sys
+import traceback
 
 app = Flask(__name__)
 
@@ -31,6 +37,17 @@ classes_meaning= {1:'still_hands_back',2:'still_hands_side'}
     
 
 freq = '19230U' # ~19ms, using sampling frequency is 52samples/sec
+
+def PrintException():
+    exc_type, exc_obj, tb = sys.exc_info()
+    f = tb.tb_frame
+    lineno = tb.tb_lineno
+    filename = f.f_code.co_filename
+    linecache.checkcache(filename)
+    line = linecache.getline(filename, lineno, f.f_globals)
+    print('EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
+
+
 
 def read_data(fname='all'):
     print('::::Read Data::::')
@@ -42,8 +59,8 @@ def read_data(fname='all'):
         data_files = []
         
         #for f_id in range(1,16):
-        #f = '../DataSets/AllData.csv'
-        f = '../Teste_dataset.csv'
+        f = '../DataSets/AllData.csv'
+        # f = '../Teste_dataset.csv'
         data = pd.read_csv(f, 
                             names=['index','xL', 'yL', 'zL', 'xR', 'yR', 'zR', 'xC', 'yC', 'zC', 'label'], 
                             header=None, index_col=0)
@@ -71,7 +88,17 @@ def read_data(fname='all'):
         
     return data
 
-def rms(ts): return np.sqrt(np.mean(ts**2))
+def rms(ts): 
+    return np.sqrt(np.mean(ts**2))
+
+def fft_zero(ts): 
+    return abs(fft(ts, axis=0)[0])
+
+def fft_positive(ts): 
+    return abs(fft(ts, axis=0)[1])
+
+def fft_negative(ts): 
+    return abs(fft(ts, axis=0)[2])
 
 def corrL(df): 
     cor = df.corr()
@@ -96,7 +123,7 @@ def get_simple_features(data, wsize='10s', f_list=['mean', 'std', 'var', rms]):
     feats = data[['xL','yL','zL']].resample(wsize, how=f_list[0]).add_suffix('%s_l' % fname)
     feat = data[['xR','yR','zR']].resample(wsize, how=f_list[0]).add_suffix('%s_r' % fname)
     feats = feats.join(feat)
-    feat = data[['xR','yR','zR']].resample(wsize, how=f_list[0]).add_suffix('%s_c' % fname)
+    feat = data[['xC','yC','zC']].resample(wsize, how=f_list[0]).add_suffix('%s_c' % fname)
     feats = feats.join(feat)
     
     
@@ -143,7 +170,7 @@ def train_model(X, y, est, grid):
 def eval_model(mod, X_test, y_test, mod_name, plt_roc=True):
     print('::::Eval Model::::')
     y_prob = mod.predict_proba(X_test)
-    y_test_bin = label_binarize(y_test, classes=[1,2,3])
+    y_test_bin = label_binarize(y_test, classes=[1,2,3,4,5,6])
     
     y_test_bin_ravel = y_test_bin.ravel()
     y_prob_ravel = y_prob.ravel()
@@ -201,20 +228,59 @@ def get_advanced_features(data, wsize_sec, overlap=.5):
     
     feat = data[['xR','yR','zR']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_r')
     feats = feats.join(feat)
+    feat = data[['xC','yC','zC']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_c')
+    feats = feats.join(feat)
+
     feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).std().add_suffix('_std_r')
     feats = feats.join(feat)
     feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).std().add_suffix('_std_l')
+    feats = feats.join(feat)
+    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).std().add_suffix('_std_c')
     feats = feats.join(feat)
     
     feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).var().add_suffix('_var_l')
     feats = feats.join(feat)
     feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).var().add_suffix('_var_r')
     feats = feats.join(feat)
+    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).var().add_suffix('_var_c')
+    feats = feats.join(feat)
     
     feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).apply(rms).add_suffix('_rms_l')
     feats = feats.join(feat)
     feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).apply(rms).add_suffix('_rms_r')
     feats = feats.join(feat)
+    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).apply(rms).add_suffix('_rms_c')
+    feats = feats.join(feat)
+
+    #Fast Fourier Transform
+
+    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).apply(fft_zero).add_suffix('_fft_c_zero')
+    feats = feats.join(feat)
+
+    feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).apply(fft_zero).add_suffix('_fft_l_zero')
+    feats = feats.join(feat)
+
+    feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).apply(fft_zero).add_suffix('_fft_r_zero')
+    feats = feats.join(feat)
+
+    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).apply(fft_positive).add_suffix('_fft_c_positive')
+    feats = feats.join(feat)
+
+    feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).apply(fft_positive).add_suffix('_fft_l_positive')
+    feats = feats.join(feat)
+
+    feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).apply(fft_positive).add_suffix('_fft_r_positive')
+    feats = feats.join(feat)
+
+    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).apply(fft_negative).add_suffix('_fft_c_negative')
+    feats = feats.join(feat)
+
+    feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).apply(fft_negative).add_suffix('_fft_l_negative')
+    feats = feats.join(feat)
+
+    feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).apply(fft_negative).add_suffix('_fft_r_negative')
+    feats = feats.join(feat)
+
         
     mean_mag = (data**2).sum(axis=1).rolling(wsize, int(wsize/2)).apply(lambda ts: np.sqrt(ts).mean())
     mean_mag.name = 'mean_mag'
@@ -224,12 +290,15 @@ def get_advanced_features(data, wsize_sec, overlap=.5):
     feats = feats.join(pairs_cor_)
     pairs_cor_ = data[['xR','yR','zR']].rolling(window=int(wsize/2)).corr(other=data[['xR','yR','zR']])
     feats = feats.join(pairs_cor_)
+    pairs_cor_ = data[['xC','yC','zC']].rolling(window=int(wsize/2)).corr(other=data[['xC','yC','zC']])
+    feats = feats.join(pairs_cor_)
     
     y = data[['label']].rolling(wsize, int(wsize/2)).apply(lambda ts: mode(ts)[0])  
 
     
     feats = feats.iloc[int(wsize*overlap)::int(wsize*overlap)] 
-    #print(feats)
+    
+
 
     y = y.iloc[int(wsize*overlap)::int(wsize*overlap)]
     print('::::END:::: Get features Advance::::')
@@ -257,6 +326,8 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     feats = feats.join(feat)
     feat = data[['xC','yC','zC']].rolling(wsize, wsize_sec).std().add_suffix('_std_c')
     feats = feats.join(feat)
+
+    
     
     
     feat = data[['xL','yL','zL']].rolling(wsize, wsize_sec).var().add_suffix('_var_l')
@@ -272,7 +343,37 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     feats = feats.join(feat)
     feat = data[['xC','yC','zC']].rolling(wsize, wsize_sec).apply(rms).add_suffix('_rms_c')
     feats = feats.join(feat)
-        
+
+     #Fast Fourier Transform
+
+    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).apply(fft_zero).add_suffix('_fft_c_zero')
+    feats = feats.join(feat)
+
+    feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).apply(fft_zero).add_suffix('_fft_l_zero')
+    feats = feats.join(feat)
+
+    feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).apply(fft_zero).add_suffix('_fft_r_zero')
+    feats = feats.join(feat)
+
+    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).apply(fft_positive).add_suffix('_fft_c_positive')
+    feats = feats.join(feat)
+
+    feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).apply(fft_positive).add_suffix('_fft_l_positive')
+    feats = feats.join(feat)
+
+    feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).apply(fft_positive).add_suffix('_fft_r_positive')
+    feats = feats.join(feat)
+
+    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).apply(fft_negative).add_suffix('_fft_c_negative')
+    feats = feats.join(feat)
+
+    feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).apply(fft_negative).add_suffix('_fft_l_negative')
+    feats = feats.join(feat)
+
+    feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).apply(fft_negative).add_suffix('_fft_r_negative')
+    feats = feats.join(feat)
+
+    
     mean_mag = (data**2).sum(axis=1).rolling(wsize, wsize_sec).apply(lambda ts: np.sqrt(ts).mean())
     mean_mag.name = 'mean_mag'
     feats = feats.join(mean_mag) 
@@ -284,7 +385,7 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     pairs_cor_ = data[['xC','yC','zC']].rolling(window=wsize_sec).corr(other=data[['xC','yC','zC']])
     feats = feats.join(pairs_cor_)
     
-    
+
     #print(feats)
     #feats = feats.iloc[int(wsize*overlap)::int(wsize_sec*overlap)] PORQUE????
     feats = feats.iloc[int(wsize_sec*overlap)::int(wsize_sec*overlap)]
@@ -318,14 +419,16 @@ for wsize in win_sizes:
         # overlapping window
         print('Overlapping window:')
         feats, y = get_advanced_features(data, int(wsize))
+
         X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25,
                                                             random_state=0, stratify=y)
         
         best_model.fit(X_train, y_train)
         roc_auc, acc = eval_model(best_model, X_test, y_test,'%ss - overlapping' %wsize, plt_roc=False)
+
         print('AUC score: %.3f' % roc_auc)
     except Exception as e:
-        print(e)
+        traceback.print_exc()
 
 #data2 = read_data('all') 
 #feats, y = get_advanced_features(data2, 2)
@@ -364,6 +467,7 @@ def predict_post(data):
     pd_data_frame.index = pd.date_range(start='00:00:00', periods=pd_data_frame.shape[0], freq=freq)
 
     feats = get_advanced_features_predict(pd_data_frame,2)
+    
     # print(pd_data_frame)x
     return (knn_model.predict(feats), svm_model.predict(feats))
 
@@ -391,7 +495,10 @@ def parse_data():
     # print(len(l))
     for n in range(0,len(l)):
 
-        if n >= len(r) or n >= len(c):
+        if n >= len(r):
+            
+            break
+        if n >= len(c):
             break
         # print(l[n])
         iL = l[n]['index']
@@ -411,12 +518,13 @@ def parse_data():
             zC = c[n]['z']
 
             jData += [[iL,xL,yL,zL,xR,yR,zR,xC,yC,zC]]
-        elif 
-
+        
     return jData
             
     
-
+queueLeft = []
+queueRight = []
+queueChest = []
 
 #the callback function
 def on_connect(client, userdata, flags, rc):
@@ -428,9 +536,6 @@ def on_connect(client, userdata, flags, rc):
 def on_disconnect(client, userdata, rc):
 	print("Disconnected From Broker")
 
-queueLeft = []
-queueRight = []
-queueChest = []
 
 # push to the queue q the data d
 def push_queue(q,d):
@@ -471,12 +576,12 @@ def on_message(client, userdata, message):
         dL = []
         dR = []
         dC = []
-        print('Left queue')
-        print(queueLeft)
-        print('Right queue')
-        print(queueRight)
-        print('Chest queue')
-        print(queueChest)
+        # print('Left queue')
+        # print(queueLeft)
+        # print('Right queue')
+        # print(queueRight)
+        # print('Chest queue')
+        # print(queueChest)
         # try to pop the 3 queues
         try:
             if len(queueLeft) > 0 and len(queueRight) > 0 and len(queueChest) > 0:
@@ -486,47 +591,29 @@ def on_message(client, userdata, message):
 
                 if dL and dR and dC:
 
-                    #need to check whether the first index are equal or not
-                    iL = dL[0]['index']
-                    iR = dR[0]['index']
-                    iC = dC[0]['index']
-
-                    if iL != iR or iR != iC:
-                        
+                    # #need to check whether the first index are equal or not
+                    # iL = dL[0]['index']
+                    # iR = dR[0]['index']
+                    # iC = dC[0]['index']                        
 
                     sentData['Left'] = dL
                     sentData['Right'] = dR
                     sentData['Chest'] = dC
 
-                    print('Parse.....')
-                    print(sentData)
+                    # print('Parse.....')
+                    # print(sentData)
                     jData = parse_data()
-                    print(jData)
-                    k,s = predict_post(jData)
+                    # print(jData)
+                    k, s = predict_post(jData)
                     print(k)
                     print(s)
                     
                     sentData = {}
             
         except Exception as e:
-            print('Error')
             print(e)
+            print(traceback.print_exc())
 
-        
-        # if message.topic not in sentData:
-        #     sentData[message.topic] = json.loads(message.payload.decode())
-        
-        # if len(sentData.keys()) == 3:
-            
-        #     jData = parse_data()
-        #     # print(len(jData))
-        #     # print(jData)
-        #     k,s = predict_post(jData)
-        #     print(k)
-        #     print(s)
-        #     # print(sentData)
-        #     print('.........')
-        #     sentData = {}
     except Exception as e:
         print(e)
         print(traceback.print_exc())
