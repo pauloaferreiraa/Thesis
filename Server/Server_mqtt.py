@@ -49,38 +49,26 @@ def PrintException():
 
 
 
-def read_data(fname='all'):
+def read_data():
     print('::::Read Data::::')
        
     dt = datetime.now()
     data = pd.DataFrame()
-    
-    if fname == 'all':    # read all files
-        data_files = []
+    data_files = []
         
-        #for f_id in range(1,16):
-        f = '../DataSets/AllData.csv'
-        # f = '../Teste_dataset.csv'
-        data = pd.read_csv(f, 
-                            names=['index','xL', 'yL', 'zL', 'xR', 'yR', 'zR', 'xC', 'yC', 'zC', 'label'], 
-                            header=None, index_col=0)
+    #for f_id in range(1,16):
+    f = '../DataSets_Delete/AllData.csv'
+    # f = '../Teste_dataset.csv'
+    data = pd.read_csv(f, 
+                        names=['index','xL', 'yL', 'zL', 'xR', 'yR', 'zR', 'xC', 'yC', 'zC', 'label'], 
+                        header=None, index_col=0)
 
-        # print('Data.shape________ %f' % data.shape[0])
-        data.index = pd.date_range(start=dt, periods=data.shape[0], freq=freq)
-        dt += timedelta(hours=3)
-        data_files.append(data)
+    # print('Data.shape________ %f' % data.shape[0])
+    data.index = pd.date_range(start=dt, periods=data.shape[0], freq=freq)
+    dt += timedelta(hours=3)
+    data_files.append(data)
             
-        data = pd.concat(data_files)
-    
-    else:    # read one file only
-        data = pd.read_csv('%s.csv' %fname, 
-                   names=['index','xL', 'yL', 'zL', 'xR', 'yR', 'zR', 'xC', 'yC', 'zC', 'label'], 
-                   header=None, index_col=0)
-        # print('Data.shape________ %f' % data.shape[0])       
-        
-
-        data.index = pd.date_range(start='00:00:00', periods=data.shape[0], freq=freq)
-    
+    data = pd.concat(data_files)
     # Filter and clean data
     data = data.dropna()
     data = data[data['label'] != 0]   # some rows are misclassified as 0
@@ -158,67 +146,6 @@ def get_simple_features(data, wsize='10s', f_list=['mean', 'std', 'var', rms]):
     feats, y = feats[~mask], y[~mask]
     print('::::END:::: Get Simple Features::::')
     return (feats, y)
-
-
-def train_model(X, y, est, grid):
-    print('::::Train Model::::')
-    gs = GridSearchCV(estimator=est, param_grid=grid, scoring='accuracy', cv=5, n_jobs=-1)
-    gs = gs.fit(X, y)
-    
-    return (gs.best_estimator_, gs.best_params_)
-
-def eval_model(mod, X_test, y_test, mod_name, plt_roc=True):
-    print('::::Eval Model::::')
-    y_prob = mod.predict_proba(X_test)
-    y_test_bin = label_binarize(y_test, classes=[1,2,3,4,5,6])
-    
-    y_test_bin_ravel = y_test_bin.ravel()
-    y_prob_ravel = y_prob.ravel()
-    
-    y_test_bin_ravel = y_test_bin_ravel[:len(y_prob_ravel)]
-    
-    fpr, tpr, _ = roc_curve(y_test_bin_ravel, y_prob_ravel)
-    roc_auc = auc(fpr, tpr)
-    
-    if plt_roc:
-        plt.plot(fpr, tpr, lw=2,
-                 label='average ROC curve (auc=%0.2f), model: %s' % (roc_auc,mod_name))
-        plt.legend(loc="lower right")
-
-    y_pred = mod.predict(X_test)
-    score = accuracy_score(y_true=y_test, y_pred=y_pred)
-    print('Accuracy score on the test set: %.3f' %score)
-    
-    confusion_ma = confusion_matrix(y_true=y_test, y_pred=y_pred)
-    confusion_ma = pd.DataFrame(confusion_ma, index=list(range(1,4)), columns=list(range(1,4)))
-    print('Confusion Matrix...')
-    print(confusion_ma)
-    
-    return (roc_auc, score)
-
-
-data = read_data('../Teste_dataset')
-param_range = [0.0001, 0.001, 0.01, 0.1]
-
-feats, y = get_simple_features(data, wsize='10s')
-# split data into train and test sets
-
-X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25, random_state=0, stratify=y)
-
-
-print('Support Vector Machine')
-svm_model, params = train_model(X_train, y_train, 
-                    est=SVC(probability=True),
-                    grid={'C': param_range, 'gamma': param_range, 'kernel': ['linear']})
-eval_model(svm_model, X_test, y_test, 'SVC')
-              
-
-print('K-Nearest Neighbor')
-knn_model, params = train_model(X_train, y_train, 
-                    est=KNeighborsClassifier(),
-                    grid={'n_neighbors':[5, 8, 10], 'weights':['uniform', 'distance']})
-eval_model(knn_model, X_test, y_test,'KNN')
-
 
 def get_advanced_features(data, wsize_sec, overlap=.5):
     print('::::START:::: Get Advance Features ::::')
@@ -305,6 +232,68 @@ def get_advanced_features(data, wsize_sec, overlap=.5):
     
     
     return feats, y
+
+def train_model(X, y, est, grid):
+    print('::::Train Model::::')
+    gs = GridSearchCV(estimator=est, param_grid=grid, scoring='accuracy', cv=5, n_jobs=-1)
+    gs = gs.fit(X, y.values.ravel())
+    
+    return (gs.best_estimator_, gs.best_params_)
+
+def eval_model(mod, X_test, y_test, mod_name, plt_roc=True):
+    print('::::Eval Model::::')
+    y_prob = mod.predict_proba(X_test)
+    y_test_bin = label_binarize(y_test, classes=[1,2,3,4,5,6])
+    
+    y_test_bin_ravel = y_test_bin.ravel()
+    y_prob_ravel = y_prob.ravel()
+    
+    y_test_bin_ravel = y_test_bin_ravel[:len(y_prob_ravel)]
+    
+    fpr, tpr, _ = roc_curve(y_test_bin_ravel, y_prob_ravel)
+    roc_auc = auc(fpr, tpr)
+    
+    if plt_roc:
+        plt.plot(fpr, tpr, lw=2,
+                 label='average ROC curve (auc=%0.2f), model: %s' % (roc_auc,mod_name))
+        plt.legend(loc="lower right")
+
+    y_pred = mod.predict(X_test)
+    score = accuracy_score(y_true=y_test, y_pred=y_pred)
+    print('Accuracy score on the test set: %.3f' %score)
+    
+    confusion_ma = confusion_matrix(y_true=y_test, y_pred=y_pred)
+    confusion_ma = pd.DataFrame(confusion_ma, index=list(range(1,6)), columns=list(range(1,6)))
+    print('Confusion Matrix...')
+    print(confusion_ma)
+    
+    return (roc_auc, score)
+
+
+data = read_data()
+param_range = [0.0001, 0.001, 0.01, 0.1]
+
+# feats, y = get_simple_features(data, wsize='10s')
+feats, y = get_advanced_features(data, 2)
+
+# split data into train and test sets
+
+X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25, random_state=0, stratify=y)
+
+
+print('Support Vector Machine')
+svm_model, params = train_model(X_train, y_train, 
+                    est=SVC(probability=True),
+                    grid={'C': param_range, 'gamma': param_range, 'kernel': ['linear']})
+eval_model(svm_model, X_test, y_test, 'SVC')
+              
+
+print('K-Nearest Neighbor')
+knn_model, params = train_model(X_train, y_train, 
+                    est=KNeighborsClassifier(),
+                    grid={'n_neighbors':[5, 8, 10], 'weights':['uniform', 'distance']})
+eval_model(knn_model, X_test, y_test,'KNN')
+
 
 def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     print('::::START:::: Get Advance Features ::::')
@@ -395,40 +384,43 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     
     return feats
 
-win_sizes = ['2']#,'3', '5', '7', '10', '13', '15', '20']
-best_model = RandomForestClassifier(criterion='entropy', n_jobs=-1, n_estimators=50)
+# win_sizes = ['2']#,'3', '5', '7', '10', '13', '15', '20']
+# best_model = RandomForestClassifier(criterion='entropy', n_jobs=-1, n_estimators=50)
 
-for wsize in win_sizes:
-    print('Window Size: %s sec' % wsize)
-    print('Min periodos:', int(wsize)/2)
-    try:
-        # disjoint window
-        print('Disjoint window:')
-        feats, y = get_simple_features(data, wsize=wsize + 's')
+# for wsize in win_sizes:
+#     print('Window Size: %s sec' % wsize)
+#     print('Min periodos:', int(wsize)/2)
+#     try:
+#         # disjoint window
+#         print('Disjoint window:')
+#         feats, y = get_simple_features(data, wsize=wsize + 's')
                
-        #print(feats)
-        X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25,
-                                                            random_state=0, stratify=y)
+#         #print(feats)
+#         X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25,
+#                                                             random_state=0, stratify=y)
         
         
-        best_model.fit(X_train, y_train)
-        roc_auc, acc = eval_model(best_model, X_test, y_test,'%ss - disjoint' %wsize, plt_roc=False)
-        print('AUC score: %.3f' % roc_auc)
+#         best_model.fit(X_train, y_train)
+#         roc_auc, acc = eval_model(best_model, X_test, y_test,'%ss - disjoint' %wsize, plt_roc=False)
+#         print('AUC score: %.3f' % roc_auc)
 
 
-        # overlapping window
-        print('Overlapping window:')
-        feats, y = get_advanced_features(data, int(wsize))
+#         # overlapping window
+#         print('Overlapping window:')
+#         feats, y = get_advanced_features(data, int(wsize))
 
-        X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25,
-                                                            random_state=0, stratify=y)
+#         print('Learning')
+#         print(feats.columns)
+
+#         X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25,
+#                                                             random_state=0, stratify=y)
         
-        best_model.fit(X_train, y_train)
-        roc_auc, acc = eval_model(best_model, X_test, y_test,'%ss - overlapping' %wsize, plt_roc=False)
+#         best_model.fit(X_train, y_train)
+#         roc_auc, acc = eval_model(best_model, X_test, y_test,'%ss - overlapping' %wsize, plt_roc=False)
 
-        print('AUC score: %.3f' % roc_auc)
-    except Exception as e:
-        traceback.print_exc()
+#         print('AUC score: %.3f' % roc_auc)
+#     except Exception as e:
+#         traceback.print_exc()
 
 #data2 = read_data('all') 
 #feats, y = get_advanced_features(data2, 2)
@@ -467,8 +459,7 @@ def predict_post(data):
     pd_data_frame.index = pd.date_range(start='00:00:00', periods=pd_data_frame.shape[0], freq=freq)
 
     feats = get_advanced_features_predict(pd_data_frame,2)
-    
-    # print(pd_data_frame)x
+    print(feats.shape)
     return (knn_model.predict(feats), svm_model.predict(feats))
 
 sentData = {}
