@@ -11,7 +11,8 @@ from bluepy.btle import UUID, Peripheral, BTLEException
 import paho.mqtt.client as mqtt
 
 #broker_address = "test.mosquitto.org"
-broker_address = "iot.eclipse.org"
+#broker_address = "iot.eclipse.org"
+broker_address = 'broker.hivemq.com'
 broker_portno = 1883
 client = mqtt.Client()
 
@@ -96,7 +97,8 @@ def read_data(sensorName,sensorMAC):
             while time.time() <= t_end:
                 time_get_data = time.time() + 0.5
                 data = '['
-                while time.time() < time_get_data:
+                index = 0
+                while index < 6:
                     index = index + 1
                     rawVals = sh.read()
 
@@ -113,10 +115,9 @@ def read_data(sensorName,sensorMAC):
                             dicData[sensorName][index] = [accX,accY,accZ]
 
                     data += '{\"index\": %d, \"x\": %f, \"y\": %f, \"z\": %f, \"sensor\": \"%s\"},' % (index, accX, accY, accZ, sensorName)
-                
                 data = data[:-1]
                 data += ']'
-                print(data)
+                # print(data)
                 client.publish(topic = sensorName, payload = data)
             
             print ("Info, turning sensor %s off!" % sensorName)
