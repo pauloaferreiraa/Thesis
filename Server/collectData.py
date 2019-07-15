@@ -10,8 +10,8 @@ import struct, sys, traceback, time, threading
 from bluepy.btle import UUID, Peripheral, BTLEException
 import paho.mqtt.client as mqtt
 
-#broker_address = "test.mosquitto.org"
-#broker_address = "iot.eclipse.org"
+# broker_address = "test.mosquitto.org"
+# broker_address = "iot.eclipse.org"
 broker_address = 'broker.hivemq.com'
 broker_portno = 1883
 client = mqtt.Client()
@@ -21,6 +21,8 @@ def TI_UUID(val):
 
 config_uuid = TI_UUID(0xAA82)
 data_uuid = TI_UUID(0xAA81)
+hum_uuid = TI_UUID(0xAA21)
+hum_config = TI_UUID(0xAA22)
 
 dataL = {}
 dataR = {}
@@ -41,6 +43,9 @@ sensorOnVal = 0x7F02
 sensorOn = struct.pack("BB", 0x7F, 0x02)
 sensorOff = struct.pack("BB", 0x00, 0x00)
 
+humSensor = struct.pack('B',0x01)
+humSensorOff = struct.pack('B',0x00)
+
 if len(sys.argv) != 2:
   print("Fatal, must pass label and time in seconds: <time> ")
   quit()
@@ -50,7 +55,6 @@ time_read = float(sys.argv[1])
 sensors_connected = 0
 e = threading.Event()
 
-dicData = {}
 tLock = threading.Lock()
 
 def read_data(sensorName,sensorMAC):
@@ -70,7 +74,10 @@ def read_data(sensorName,sensorMAC):
         try:
             print ("Info, connected and turning sensor %s on!" % sensorName)
             sh = sensor.getCharacteristics(uuid=config_uuid)[0]
-            sh.write(sensorOn, withResponse=True) 
+            sh.write(sensorOn, withResponse=True)
+            sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
+            sh_hum.write(humSensor, withResponse=True)
+
 
             
 
@@ -86,6 +93,8 @@ def read_data(sensorName,sensorMAC):
             print ("Info, reading values on %s!" % sensorName)
 
             sh = sensor.getCharacteristics(uuid=data_uuid)[0]
+            sh_hum = sensor.getCharacteristics(uuid=hum_uuid)[0]
+
 
             t_end = time.time() + time_read
 
@@ -101,20 +110,25 @@ def read_data(sensorName,sensorMAC):
                 while index < 6:
                     index = index + 1
                     rawVals = sh.read()
+                    rawVals_hum = sh_hum.read()
 
+                
                     #   Movement data: 9 bytes made up of x, y and z for Gyro, Accelerometer, 
                     #   and Magnetometer.  Raw values must be divided by scale
                     (gyroX, gyroY, gyroZ, accX, accY, accZ, magX, magY, magZ) = struct.unpack('<hhhhhhhhh', rawVals)
-                    scale = 4096.0
-                    
-                    with tLock:
-                        if sensorName not in dicData:
-                            dicData[sensorName] = {}
-                            dicData[sensorName][index] = [accX,accY,accZ]
-                        else:
-                            dicData[sensorName][index] = [accX,accY,accZ]
+                    (temp,hum) = struct.unpack('<hh',rawVals_hum)
 
-                    data += '{\"index\": %d, \"x\": %f, \"y\": %f, \"z\": %f, \"sensor\": \"%s\"},' % (index, accX, accY, accZ, sensorName)
+                    temp = (temp/65536)*165-40
+                    hum = (hum / 65536)*100
+                    
+                    print('Temperatura & Humidity')
+                    print(temp,hum)
+                    scale = 4096.0
+
+                    
+
+                    data += '{\"index\": %d, \"x\": %f, \"y\": %f, \"z\": %f, \"sensor\": \"%s\"},' % (index, accX / scale, \
+                        accY / scale, accZ / scale, sensorName)
                 data = data[:-1]
                 data += ']'
                 # print(data)
@@ -123,6 +137,8 @@ def read_data(sensorName,sensorMAC):
             print ("Info, turning sensor %s off!" % sensorName)
             sh = sensor.getCharacteristics(uuid=config_uuid)[0]
             sh.write(sensorOff, withResponse=True)
+            sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
+            sh_hum.write(humSensorOff, withResponse=True)
             sensors_connected -= 1
         except:
             print ("Fatal, unexpected error!")
@@ -134,9 +150,6 @@ def read_data(sensorName,sensorMAC):
             sensor.disconnect()
     finally:
         quit()
-
-
-    
 
 sensorLeft = '24:71:89:BB:FA:00'
 sensorRight = '24:71:89:C0:BC:84'
@@ -157,3 +170,25 @@ rThread.join()
 print("End of right thread!!")
 cThread.join()
 print("End of chest thread!!")
+
+# def on_message(client, userdata, message):
+
+
+
+
+# def on_connect(client, userdata, flags, rc):
+#     print('Ola')
+#     client.subscribe('frontend')
+
+# def on_disconnect(client, userdata, rc):
+#     print('Ola')
+
+
+
+# client.on_connect = on_connect
+# client.on_disconnect = on_disconnect
+# client.on_message = on_message
+
+# client.connect(broker_address, broker_portno)
+
+# client.loop_forever()
