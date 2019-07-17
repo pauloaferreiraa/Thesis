@@ -273,6 +273,8 @@ def eval_model(mod, X_test, y_test, mod_name, plt_roc=True):
 data = read_data()
 param_range = [0.0001, 0.001, 0.01, 0.1]
 
+
+
 # feats, y = get_simple_features(data, wsize='10s')
 feats, y = get_advanced_features(data, 2)
 
@@ -375,7 +377,8 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     feats = feats.join(pairs_cor_)
     
 
-    #print(feats)
+    feats = feats.replace([np.inf, -np.inf], np.nan)
+
     #feats = feats.iloc[int(wsize*overlap)::int(wsize_sec*overlap)] PORQUE????
     feats = feats.iloc[int(wsize_sec*overlap)::int(wsize_sec*overlap)]
     feats = feats.fillna(0)
@@ -609,9 +612,9 @@ def on_message(client, userdata, message):
         print(e)
         print(traceback.print_exc())
 
-#broker_address = "iot.eclipse.org"
+broker_address = "iot.eclipse.org"
 #broker_address = "test.mosquitto.org"
-broker_address = 'broker.hivemq.com'
+# broker_address = 'broker.hivemq.com'
 broker_portno = 1883
 client = mqtt.Client()
 
