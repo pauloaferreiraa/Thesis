@@ -110,8 +110,8 @@ def read_data(sensorName,sensorMAC):
                     temp = (temp/65536)*165-40
                     hum = (hum / 65536)*100
                     
-                    print('Temperatura & Humidity')
-                    print(temp,hum)
+                    # print('Temperatura & Humidity')
+                    # print(temp,hum)
                     scale = 4096.0
 
                     
