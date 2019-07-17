@@ -6,7 +6,9 @@
             <div>
                 <h1>Get data</h1>
                 <toggle-button @change="turnSensorsOn" :value="false" color="#1DB954" :sync="true" :labels="true"/>
-                {{ counter }}
+                <h1>Left -> {{sensorLeft}}</h1>
+                <h1>Right -> {{sensorRight}}</h1>
+                <h1>Chest -> {{sensorChest}}</h1>
             </div>
         </div>
         
@@ -19,18 +21,40 @@ import 'bootstrap/dist/css/bootstrap.css';
 import 'bootstrap-vue/dist/bootstrap-vue.css';
 import NavBarComponent from './NavBar.vue';
 
+
 export default {
+    mqtt: {
+    'client': function(val) {
+      if(val.toString() == 'Left'){
+          this.sensorLeft = !this.sensorLeft
+          console.log(this.sensorLeft)
+      }
+    }
+    },
     name:'MainScreen',
     components:{NavBarComponent},
     data () {
         return{
-            msg: 'Welcome to Your Vue.js App',
-            counter: 0
-        }
+            send: false,
+            sensorLeft: false,
+            sensorRight: false,
+            sensorChest: false,
+        }               
+    },
+    created: function(){
+        this.$mqtt.subscribe('client')
+        console.log('Subscribed')
     },
     methods: {
         turnSensorsOn: function(event){
-            this.$mqtt.publish('', 'message')
+            this.send = !this.send;
+            if(this.send == true){
+                this.$mqtt.publish('frontend', 'start')
+            }else{
+                 this.$mqtt.publish('frontend', 'finish')
+            }
+            
+            //this.$msg({text:'Waiting for Server\'s response', background: '#1DB954'})
         }
     }
 }

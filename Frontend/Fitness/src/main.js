@@ -5,10 +5,14 @@ import App from './App'
 import router from './router'
 import BootstrapVue from 'bootstrap-vue'
 import ToggleButton from 'vue-js-toggle-button'
-import VueMqtt from 'vue-mqtt';
+import VueMqtt from 'vue-mqtt'
+import Msg from 'vue-message'
 
 
-//Vue.use(VueMqtt, 'broker.hivemq.com', options); 
+Vue.use(Msg, {
+    text: 'Hello world', duration: 3000, background: 'rgb(30,215,96)'
+})
+Vue.use(VueMqtt, 'ws://iot.eclipse.org/ws'); 
 Vue.use(ToggleButton)
 Vue.use(BootstrapVue)
 
