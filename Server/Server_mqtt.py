@@ -147,7 +147,7 @@ def get_simple_features(data, wsize='10s', f_list=['mean', 'std', 'var', rms]):
     print('::::END:::: Get Simple Features::::')
     return (feats, y)
 
-def get_advanced_features(data, wsize_sec, overlap=.5):
+def get_advanced_features(data, y, wsize_sec, overlap=.5):
     print('::::START:::: Get Advance Features ::::')
     
     wsize = int(10*wsize_sec)
@@ -220,7 +220,7 @@ def get_advanced_features(data, wsize_sec, overlap=.5):
     pairs_cor_ = data[['xC','yC','zC']].rolling(window=int(wsize/2)).corr(other=data[['xC','yC','zC']])
     feats = feats.join(pairs_cor_)
     
-    y = data[['label']].rolling(wsize, int(wsize/2)).apply(lambda ts: mode(ts)[0])  
+    y = y[['label']].rolling(wsize, int(wsize/2)).apply(lambda ts: mode(ts)[0])  
 
     
     feats = feats.iloc[int(wsize*overlap)::int(wsize*overlap)] 
@@ -275,12 +275,20 @@ param_range = [0.0001, 0.001, 0.01, 0.1]
 
 
 
-# feats, y = get_simple_features(data, wsize='10s')
-feats, y = get_advanced_features(data, 2)
+# feats, y = get_advanced_features(data, 2)
 
 # split data into train and test sets
+y = data[['label']]
+data = data.drop(columns=['label'])
 
-X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25, random_state=0, stratify=y)
+
+X_train, y_train, X_test, y_test = train_test_split(data, y, test_size=.25, random_state=0, stratify=y)
+
+# X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25, random_state=0, stratify=y)
+
+
+X_train, y_train = get_advanced_features(X_train, y_train, 2)
+X_test, y_test = get_advanced_features(X_test, y_test, y, 2)
 
 
 print('Support Vector Machine')
