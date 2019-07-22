@@ -220,7 +220,7 @@ def get_advanced_features(data, y, wsize_sec, overlap=.5):
     pairs_cor_ = data[['xC','yC','zC']].rolling(window=int(wsize/2)).corr(other=data[['xC','yC','zC']])
     feats = feats.join(pairs_cor_)
     
-    y = y[['label']].rolling(wsize, int(wsize/2)).apply(lambda ts: mode(ts)[0])  
+    # y = y[['label']].rolling(wsize, int(wsize/2)).apply(lambda ts: mode(ts)[0])  
 
     
     feats = feats.iloc[int(wsize*overlap)::int(wsize*overlap)] 
@@ -282,13 +282,13 @@ y = data[['label']]
 data = data.drop(columns=['label'])
 
 
-X_train, y_train, X_test, y_test = train_test_split(data, y, test_size=.25, random_state=0, stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(data, y, test_size=.25, random_state=0, stratify=y)
 
 # X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25, random_state=0, stratify=y)
 
 
 X_train, y_train = get_advanced_features(X_train, y_train, 2)
-X_test, y_test = get_advanced_features(X_test, y_test, y, 2)
+X_test, y_test = get_advanced_features(X_test, y_test, 2)
 
 
 print('Support Vector Machine')
