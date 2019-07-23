@@ -220,8 +220,7 @@ def get_advanced_features(data, y, wsize_sec, overlap=.5):
     pairs_cor_ = data[['xC','yC','zC']].rolling(window=int(wsize/2)).corr(other=data[['xC','yC','zC']])
     feats = feats.join(pairs_cor_)
     
-    # y = y[['label']].rolling(wsize, int(wsize/2)).apply(lambda ts: mode(ts)[0])  
-
+    # y = data[['label']].rolling(wsize, int(wsize/2)).apply(lambda ts: mode(ts)[0])  
     
     feats = feats.iloc[int(wsize*overlap)::int(wsize*overlap)] 
     
@@ -279,10 +278,10 @@ param_range = [0.0001, 0.001, 0.01, 0.1]
 
 # split data into train and test sets
 y = data[['label']]
-data = data.drop(columns=['label'])
+data = data.drop('label',axis=1)
 
 
-X_train, X_test, y_train, y_test = train_test_split(data, y, test_size=.25, random_state=0, stratify=y)
+X_train, X_test, y_train, y_test = train_test_split(data, y, test_size=.25, random_state=0,shuffle=False)
 
 # X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25, random_state=0, stratify=y)
 
