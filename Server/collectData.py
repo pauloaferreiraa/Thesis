@@ -30,6 +30,7 @@ dataC = {}
 send = 0 # When send == 0 data is not sent, if send == 1 data is sent to the server
 
 
+
 # Bit settings to turn on individual movement sensors
 # bits 0 - 2: Gyro x, y z
 # bits 3 - 5: Accelerometer x, y, z
@@ -48,7 +49,11 @@ sensorOff = struct.pack("BB", 0x00, 0x00)
 humSensor = struct.pack('B',0x01)
 humSensorOff = struct.pack('B',0x00)
 
+if len(sys.argv) != 2:
+  print("Fatal, must pass label and time in seconds: <time> ")
+  quit()
 
+time_read = float(sys.argv[1])
 
 sensors_connected = 0
 e = threading.Event()
@@ -89,10 +94,15 @@ def read_data(sensorName,sensorMAC):
             sh = sensor.getCharacteristics(uuid=data_uuid)[0]
             sh_hum = sensor.getCharacteristics(uuid=hum_uuid)[0]
 
-            index = 0            
+            t_end = time.time() + time_read
 
-            while send == 1:
-                
+            index = 0
+            beginning = time.time()
+
+            
+
+            while time.time() <= t_end:
+                time_get_data = time.time() + 0.5
                 data = '['
                 index = 0
                 while index < 6:
@@ -106,12 +116,12 @@ def read_data(sensorName,sensorMAC):
                     (gyroX, gyroY, gyroZ, accX, accY, accZ, magX, magY, magZ) = struct.unpack('<hhhhhhhhh', rawVals)
                     (temp,hum) = struct.unpack('<hh',rawVals_hum)
                     
-                    print(hum)
+                    # print(hum)
                     temp = (temp/65536)*165-40
                     hum = (hum / 65536)*100
                     
-                    print('Temperatura & Humidity')
-                    print(temp,hum)
+                    # print('Temperatura & Humidity')
+                    # print(temp,hum)
                     scale = 4096.0
 
                     
@@ -149,40 +159,54 @@ sensorChest = '24:71:89:C1:3C:04'
 
 client.connect(broker_address, broker_portno)
 
-def on_message(client, userdata, message):
-    print('Received message')
-    global send
-    if(message.topic == 'frontend'):
-        if message.payload.decode() == 'start':
-            send = 1
-            lThread = threading.Thread(target=read_data,args=("Left",sensorLeft,))
-            lThread.start()
-            rThread = threading.Thread(target=read_data,args=("Right",sensorRight,))
-            rThread.start()
-            cThread = threading.Thread(target=read_data,args=("Chest",sensorChest,))
-            cThread.start()
-        if message.payload.decode() == 'finish':
-            send = 0
-            lThread.join()
-            print("End of left thread!!")
-            rThread.join()
-            print("End of right thread!!")
-            cThread.join()
-            print("End of chest thread!!")
+lThread = threading.Thread(target=read_data,args=("Left",sensorLeft,))
+lThread.start()
+rThread = threading.Thread(target=read_data,args=("Right",sensorRight,))
+rThread.start()
+cThread = threading.Thread(target=read_data,args=("Chest",sensorChest,))
+cThread.start()
+
+lThread.join()
+print("End of left thread!!")
+rThread.join()
+print("End of right thread!!")
+cThread.join()
+print("End of chest thread!!")
+
+# def on_message(client, userdata, message):
+#     print('Received message')
+#     global send
+#     if(message.topic == 'frontend'):
+#         if message.payload.decode() == 'start':
+#             send = 1
+#             lThread = threading.Thread(target=read_data,args=("Left",sensorLeft,))
+#             lThread.start()
+#             rThread = threading.Thread(target=read_data,args=("Right",sensorRight,))
+#             rThread.start()
+#             cThread = threading.Thread(target=read_data,args=("Chest",sensorChest,))
+#             cThread.start()
+#         if message.payload.decode() == 'finish':
+#             send = 0
+#             lThread.join()
+#             print("End of left thread!!")
+#             rThread.join()
+#             print("End of right thread!!")
+#             cThread.join()
+#             print("End of chest thread!!")
 
 
-def on_connect(client, userdata, flags, rc):
-    client.subscribe('frontend')
+# def on_connect(client, userdata, flags, rc):
+#     client.subscribe('frontend')
 
-def on_disconnect(client, userdata, rc):
-    print("Disconnected From Broker")
+# def on_disconnect(client, userdata, rc):
+#     print("Disconnected From Broker")
 
 
 
-client.on_connect = on_connect
-client.on_disconnect = on_disconnect
-client.on_message = on_message
+# client.on_connect = on_connect
+# client.on_disconnect = on_disconnect
+# client.on_message = on_message
 
-client.connect(broker_address, broker_portno)
+# client.connect(broker_address, broker_portno)
 
-client.loop_forever()
+# client.loop_forever()
