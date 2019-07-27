@@ -225,7 +225,6 @@ def get_advanced_features(data, y, wsize_sec, overlap=.5):
     feats = feats.iloc[int(wsize*overlap)::int(wsize*overlap)] 
     
 
-
     y = y.iloc[int(wsize*overlap)::int(wsize*overlap)]
     print('::::END:::: Get features Advance::::')
     
@@ -300,7 +299,7 @@ eval_model(svm_model, X_test, y_test, 'SVC')
 print('K-Nearest Neighbor')
 knn_model, params = train_model(X_train, y_train, 
                     est=KNeighborsClassifier(),
-                    grid={'n_neighbors':[5, 8, 10], 'weights':['uniform', 'distance']})
+                    grid={'n_neighbors':[5, 8, 10, 12], 'weights':['uniform', 'distance']})
 eval_model(knn_model, X_test, y_test,'KNN')
 
 
@@ -312,34 +311,34 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
 
     wsize = int(10*wsize_sec)
     # print(data[['xL','yL','zL']].rolling(wsize,int(wsize/2)).mean())
-    feats = data[['xL','yL','zL']].rolling(wsize,wsize_sec).mean().add_suffix('_mean_l')
+    feats = data[['xL','yL','zL']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_l')
     
-    feat = data[['xR','yR','zR']].rolling(wsize,wsize_sec).mean().add_suffix('_mean_r')
+    feat = data[['xR','yR','zR']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_r')
     feats = feats.join(feat)
-    feat = data[['xC','yC','zC']].rolling(wsize,wsize_sec).mean().add_suffix('_mean_c')
+    feat = data[['xC','yC','zC']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_c')
     feats = feats.join(feat)
-    feat = data[['xL','yL','zL']].rolling(wsize, wsize_sec).std().add_suffix('_std_l')
+    feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).std().add_suffix('_std_l')
     feats = feats.join(feat)
-    feat = data[['xR','yR','zR']].rolling(wsize, wsize_sec).std().add_suffix('_std_r')
+    feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).std().add_suffix('_std_r')
     feats = feats.join(feat)
-    feat = data[['xC','yC','zC']].rolling(wsize, wsize_sec).std().add_suffix('_std_c')
+    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).std().add_suffix('_std_c')
     feats = feats.join(feat)
 
     
     
     
-    feat = data[['xL','yL','zL']].rolling(wsize, wsize_sec).var().add_suffix('_var_l')
+    feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).var().add_suffix('_var_l')
     feats = feats.join(feat)
-    feat = data[['xR','yR','zR']].rolling(wsize, wsize_sec).var().add_suffix('_var_r')
+    feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).var().add_suffix('_var_r')
     feats = feats.join(feat)
-    feat = data[['xC','yC','zC']].rolling(wsize, wsize_sec).var().add_suffix('_var_c')
+    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).var().add_suffix('_var_c')
     feats = feats.join(feat)
     
-    feat = data[['xL','yL','zL']].rolling(wsize, wsize_sec).apply(rms).add_suffix('_rms_l')
+    feat = data[['xL','yL','zL']].rolling(wsize, int(wsize/2)).apply(rms).add_suffix('_rms_l')
     feats = feats.join(feat)
-    feat = data[['xR','yR','zR']].rolling(wsize, wsize_sec).apply(rms).add_suffix('_rms_r')
+    feat = data[['xR','yR','zR']].rolling(wsize, int(wsize/2)).apply(rms).add_suffix('_rms_r')
     feats = feats.join(feat)
-    feat = data[['xC','yC','zC']].rolling(wsize, wsize_sec).apply(rms).add_suffix('_rms_c')
+    feat = data[['xC','yC','zC']].rolling(wsize, int(wsize/2)).apply(rms).add_suffix('_rms_c')
     feats = feats.join(feat)
 
      #Fast Fourier Transform
@@ -372,22 +371,22 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     feats = feats.join(feat)
 
     
-    mean_mag = (data**2).sum(axis=1).rolling(wsize, wsize_sec).apply(lambda ts: np.sqrt(ts).mean())
+    mean_mag = (data**2).sum(axis=1).rolling(wsize, int(wsize/2)).apply(lambda ts: np.sqrt(ts).mean())
     mean_mag.name = 'mean_mag'
     feats = feats.join(mean_mag) 
     
-    pairs_cor_ = data[['xL','yL','zL']].rolling(window=wsize_sec).corr(other=data[['xL','yL','zL']])
+    pairs_cor_ = data[['xL','yL','zL']].rolling(window=int(wsize/2)).corr(other=data[['xL','yL','zL']])
     feats = feats.join(pairs_cor_)
-    pairs_cor_ = data[['xR','yR','zR']].rolling(window=wsize_sec).corr(other=data[['xR','yR','zR']])
+    pairs_cor_ = data[['xR','yR','zR']].rolling(window=int(wsize/2)).corr(other=data[['xR','yR','zR']])
     feats = feats.join(pairs_cor_)
-    pairs_cor_ = data[['xC','yC','zC']].rolling(window=wsize_sec).corr(other=data[['xC','yC','zC']])
+    pairs_cor_ = data[['xC','yC','zC']].rolling(window=int(wsize/2)).corr(other=data[['xC','yC','zC']])
     feats = feats.join(pairs_cor_)
     
 
     feats = feats.replace([np.inf, -np.inf], np.nan)
 
-    #feats = feats.iloc[int(wsize*overlap)::int(wsize_sec*overlap)] PORQUE????
-    feats = feats.iloc[int(wsize_sec*overlap)::int(wsize_sec*overlap)]
+    feats = feats.iloc[int(wsize*overlap)::int(wsize_sec*overlap)] #PORQUE????
+    # feats = feats.iloc[int(wsize_sec*overlap)::int(wsize_sec*overlap)]
     feats = feats.fillna(0)
     # print(feats)
     print('::::END:::: Get features Advance Predict::::')
