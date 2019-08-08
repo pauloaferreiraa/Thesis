@@ -28,7 +28,8 @@ from flask import request
 
 import linecache
 import sys
-import traceback
+import traceback, pdb
+
 
 app = Flask(__name__)
 
@@ -36,7 +37,7 @@ app = Flask(__name__)
 classes_meaning= {1:'still_hands_back',2:'still_hands_side'}
     
 
-freq = '19230U' # ~19ms, using sampling frequency is 52samples/sec
+
 
 def PrintException():
     exc_type, exc_obj, tb = sys.exc_info()
@@ -48,7 +49,7 @@ def PrintException():
     print('EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
 
 
-
+freq = '8333U' # ~19ms, using sampling frequency is 52samples/sec
 def read_data():
     print('::::Read Data::::')
        
@@ -64,11 +65,8 @@ def read_data():
                         header=None, index_col=0)
 
     # print('Data.shape________ %f' % data.shape[0])
-    data.index = pd.date_range(start=dt, periods=data.shape[0], freq=freq)
-    dt += timedelta(hours=3)
-    data_files.append(data)
-            
-    data = pd.concat(data_files)
+    data.index = pd.date_range(start='00:00:00', periods=data.shape[0], freq=freq)
+    
     # Filter and clean data
     data = data.dropna()
     data = data[data['label'] != 0]   # some rows are misclassified as 0
@@ -102,55 +100,12 @@ def corrC(df):
     return pd.DataFrame({'xyC':[cor['xC']['yC']], 'xzC':[cor['xC']['zC']], 'yzC':[cor['yC']['zC']]})
 
 
-def get_simple_features(data, wsize='10s', f_list=['mean', 'std', 'var', rms]):
-    print('::::START:::: Get Simple Features::::')
-    # f_list is a list of features names or methods to apply in resampling
-    
-    # features that invlove one dimension only.
-    fname = '_' + (f_list[0] if isinstance(f_list[0], str) else f_list[0].__name__)   
-    feats = data[['xL','yL','zL']].resample(wsize, how=f_list[0]).add_suffix('%s_l' % fname)
-    feat = data[['xR','yR','zR']].resample(wsize, how=f_list[0]).add_suffix('%s_r' % fname)
-    feats = feats.join(feat)
-    feat = data[['xC','yC','zC']].resample(wsize, how=f_list[0]).add_suffix('%s_c' % fname)
-    feats = feats.join(feat)
-    
-    
-    for i, f in enumerate(f_list[1:]):
-        fname = '_' + (f if isinstance(f, str) else f.__name__)
-        feat = data[['xL','yL','zL']].resample(wsize, how=f).add_suffix('%s_L' % fname)
-        feats = feats.join(feat)
-        feat = data[['xR','yR','zR']].resample(wsize, how=f).add_suffix('%s_R' % fname)
-        feats = feats.join(feat) 
-        feat = data[['xC','yC','zC']].resample(wsize, how=f).add_suffix('%s_C' % fname)
-        feats = feats.join(feat) 
-
-    # features that involve more than one dimension.                                               
-    mean_mag = (data**2).sum(axis=1).resample(wsize, how=lambda ts: np.sqrt(ts).mean())
-    mean_mag.name = 'mean_mag'
-    feats = feats.join(mean_mag) 
-
-    pairs_cor = data.groupby(pd.TimeGrouper(wsize)).apply(corrL).reset_index(1, drop=True)
-    feats = feats.join(pairs_cor) 
-    pairs_cor = data.groupby(pd.TimeGrouper(wsize)).apply(corrR).reset_index(1, drop=True)
-    feats = feats.join(pairs_cor) 
-    pairs_cor = data.groupby(pd.TimeGrouper(wsize)).apply(corrC).reset_index(1, drop=True)
-    feats = feats.join(pairs_cor) 
-    
-    y = data['label'].resample(wsize, how=lambda ts: mode(ts)[0] if ts.shape[0] > 0 else np.nan)   
-
-    
-    # drop any nan values
-    mask = np.any(np.isnan(feats), axis=1)
-    feats, y = feats[~mask], y[~mask]
-    mask = np.isnan(y)
-    feats, y = feats[~mask], y[~mask]
-    print('::::END:::: Get Simple Features::::')
-    return (feats, y)
-
 def get_advanced_features(data, y, wsize_sec, overlap=.5):
     print('::::START:::: Get Advance Features ::::')
     
     wsize = int(10*wsize_sec)
+ 
+
     feats = data[['xL','yL','zL']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_l')
     
     feat = data[['xR','yR','zR']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_r')
@@ -209,9 +164,9 @@ def get_advanced_features(data, y, wsize_sec, overlap=.5):
     feats = feats.join(feat)
 
         
-    mean_mag = (data**2).sum(axis=1).rolling(wsize, int(wsize/2)).apply(lambda ts: np.sqrt(ts).mean())
-    mean_mag.name = 'mean_mag'
-    feats = feats.join(mean_mag) 
+    # mean_mag = (data**2).sum(axis=1).rolling(wsize, int(wsize/2)).apply(lambda ts: np.sqrt(ts).mean())
+    # mean_mag.name = 'mean_mag'
+    # feats = feats.join(mean_mag) 
     
     pairs_cor_ = data[['xL','yL','zL']].rolling(window=int(wsize/2)).corr(other=data[['xL','yL','zL']])
     feats = feats.join(pairs_cor_)
@@ -228,7 +183,8 @@ def get_advanced_features(data, y, wsize_sec, overlap=.5):
     y = y.iloc[int(wsize*overlap)::int(wsize*overlap)]
     print('::::END:::: Get features Advance::::')
     
-    
+    print(feats.shape)
+    print(data.shape)
     return feats, y
 
 def train_model(X, y, est, grid):
@@ -288,6 +244,9 @@ X_train, X_test, y_train, y_test = train_test_split(data, y, test_size=.25, rand
 X_train, y_train = get_advanced_features(X_train, y_train, 2)
 X_test, y_test = get_advanced_features(X_test, y_test, 2)
 
+from collections import Counter
+
+print(Counter(list(y_test['label'].values)))
 
 print('Support Vector Machine')
 svm_model, params = train_model(X_train, y_train, 
@@ -308,11 +267,17 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     def rms(ts): return np.sqrt(np.mean(ts**2))
 
     #print(data)
-
     wsize = int(10*wsize_sec)
-    # print(data[['xL','yL','zL']].rolling(wsize,int(wsize/2)).mean())
-    feats = data[['xL','yL','zL']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_l')
     
+    
+    feats = data[['xL','yL','zL']].resample(wsize).add_suffix('l')
+    feat = data[['xR','yR','zR']].resample(wsize).add_suffix('r')
+    feats = feats.join(feat)
+    feat = data[['xC','yC','zC']].resample(wsize).add_suffix('c')
+    feats = feats.join(feat)
+
+    feat = data[['xL','yL','zL']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_l')
+    feats = feats.join(feat)
     feat = data[['xR','yR','zR']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_r')
     feats = feats.join(feat)
     feat = data[['xC','yC','zC']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_c')
@@ -371,9 +336,9 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     feats = feats.join(feat)
 
     
-    mean_mag = (data**2).sum(axis=1).rolling(wsize, int(wsize/2)).apply(lambda ts: np.sqrt(ts).mean())
-    mean_mag.name = 'mean_mag'
-    feats = feats.join(mean_mag) 
+    # mean_mag = (data**2).sum(axis=1).rolling(wsize, int(wsize/2)).apply(lambda ts: np.sqrt(ts).mean())
+    # mean_mag.name = 'mean_mag'
+    # feats = feats.join(mean_mag) 
     
     pairs_cor_ = data[['xL','yL','zL']].rolling(window=int(wsize/2)).corr(other=data[['xL','yL','zL']])
     feats = feats.join(pairs_cor_)
@@ -390,7 +355,6 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     feats = feats.fillna(0)
     # print(feats)
     print('::::END:::: Get features Advance Predict::::')
-    
     return feats
 
 # win_sizes = ['2']#,'3', '5', '7', '10', '13', '15', '20']
@@ -474,9 +438,7 @@ def predict_post(data):
 sentData = {}
 
 def parse_data():
-    
-    # print(sentData)
-    
+   
 
     jData = []
 
