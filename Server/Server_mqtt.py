@@ -270,14 +270,8 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     wsize = int(10*wsize_sec)
     
     
-    feats = data[['xL','yL','zL']].resample(wsize).add_suffix('l')
-    feat = data[['xR','yR','zR']].resample(wsize).add_suffix('r')
-    feats = feats.join(feat)
-    feat = data[['xC','yC','zC']].resample(wsize).add_suffix('c')
-    feats = feats.join(feat)
-
-    feat = data[['xL','yL','zL']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_l')
-    feats = feats.join(feat)
+    feats = data[['xL','yL','zL']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_l')
+    
     feat = data[['xR','yR','zR']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_r')
     feats = feats.join(feat)
     feat = data[['xC','yC','zC']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_c')
