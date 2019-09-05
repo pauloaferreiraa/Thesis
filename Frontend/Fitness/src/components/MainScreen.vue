@@ -6,9 +6,12 @@
             <div>
                 <h1>Get data</h1>
                 <toggle-button @change="turnSensorsOn" :value="false" color="#1DB954" :sync="true" :labels="true"/>
-                <h1>Left -> {{sensorLeft}}</h1>
-                <h1>Right -> {{sensorRight}}</h1>
-                <h1>Chest -> {{sensorChest}}</h1>
+                <div id='sensors'>
+                    <span align="left">Left <status-indicator :status="sensorLeft" /></span>
+                    <span align="center">Right <status-indicator :status="sensorRight" /></span>
+                    <span align="right">Chest <status-indicator :status="sensorChest" /></span>
+                </div>
+                
             </div>
         </div>
         
@@ -20,25 +23,32 @@
 import 'bootstrap/dist/css/bootstrap.css';
 import 'bootstrap-vue/dist/bootstrap-vue.css';
 import NavBarComponent from './NavBar.vue';
+import { StatusIndicator } from 'vue-status-indicator';
 
 
 export default {
     mqtt: {
     'client': function(val) {
-      if(val.toString() == 'Left'){
-          this.sensorLeft = !this.sensorLeft
-          console.log(this.sensorLeft)
-      }
+        if(val.toString() == 'Left'){
+            if(this.sensorLeft == 'negative'){
+                this.sensorLeft = 'positive'
+            }else{
+                if(this.sensorLeft == 'positive'){
+                    this.sensorLeft = 'negative'
+                }
+            }
+            console.log(this.sensorLeft)
+        }
     }
     },
     name:'MainScreen',
-    components:{NavBarComponent},
+    components:{NavBarComponent,StatusIndicator},
     data () {
         return{
             send: false,
-            sensorLeft: false,
-            sensorRight: false,
-            sensorChest: false,
+            sensorLeft: "negative",
+            sensorRight: "negative",
+            sensorChest: "negative",
         }               
     },
     created: function(){
@@ -54,7 +64,8 @@ export default {
                  this.$mqtt.publish('frontend', 'finish')
             }
             
-            //this.$msg({text:'Waiting for Server\'s response', background: '#1DB954'})
+            this.$msg({text:'Waiting for Server\'s response', background: '#1DB954'})
+            
         }
     }
 }
@@ -68,7 +79,9 @@ export default {
         top: 0; right: 0; bottom: 0; left: 0;
     }
 
-    h1{
+    span{
         color: white;
+        font-size:45px;
+        margin:50px;
     }
 </style>
