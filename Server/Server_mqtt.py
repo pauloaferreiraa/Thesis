@@ -49,7 +49,7 @@ def PrintException():
     print('EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
 
 
-freq = '8333U' # ~19ms, using sampling frequency is 52samples/sec
+freq = '9090U' # ~19ms, using sampling frequency is 52samples/sec
 def read_data():
     print('::::Read Data::::')
        
@@ -58,7 +58,7 @@ def read_data():
     data_files = []
         
     #for f_id in range(1,16):
-    f = '../DataSets_Delete/AllData.csv'
+    f = '../NewDataSet/Merge.csv'
     # f = '../Teste_dataset.csv'
     data = pd.read_csv(f, 
                         names=['index','xL', 'yL', 'zL', 'xR', 'yR', 'zR', 'xC', 'yC', 'zC', 'label'], 
@@ -180,6 +180,9 @@ def get_advanced_features(data, y, wsize_sec, overlap=.5):
     feats = feats.iloc[int(wsize*overlap)::int(wsize*overlap)] 
     
 
+    feats = feats.replace([np.inf, -np.inf], np.nan)
+    feats = feats.fillna(0)
+
     y = y.iloc[int(wsize*overlap)::int(wsize*overlap)]
     print('::::END:::: Get features Advance::::')
     
@@ -197,7 +200,7 @@ def train_model(X, y, est, grid):
 def eval_model(mod, X_test, y_test, mod_name, plt_roc=True):
     print('::::Eval Model::::')
     y_prob = mod.predict_proba(X_test)
-    y_test_bin = label_binarize(y_test, classes=[1,2,3,4,5,6])
+    y_test_bin = label_binarize(y_test, classes=[1,2,4,5])
     
     y_test_bin_ravel = y_test_bin.ravel()
     y_prob_ravel = y_prob.ravel()
@@ -217,7 +220,7 @@ def eval_model(mod, X_test, y_test, mod_name, plt_roc=True):
     print('Accuracy score on the test set: %.3f' %score)
     
     confusion_ma = confusion_matrix(y_true=y_test, y_pred=y_pred)
-    confusion_ma = pd.DataFrame(confusion_ma, index=list(range(1,6)), columns=list(range(1,6)))
+    confusion_ma = pd.DataFrame(confusion_ma, index=list(range(1,5)), columns=list(range(1,5)))
     print('Confusion Matrix...')
     print(confusion_ma)
     
@@ -244,9 +247,10 @@ X_train, X_test, y_train, y_test = train_test_split(data, y, test_size=.25, rand
 X_train, y_train = get_advanced_features(X_train, y_train, 2)
 X_test, y_test = get_advanced_features(X_test, y_test, 2)
 
-from collections import Counter
+# from collections import Counter
 
-print(Counter(list(y_test['label'].values)))
+# print(Counter(list(y_test['label'].values)))
+
 
 print('Support Vector Machine')
 svm_model, params = train_model(X_train, y_train, 
@@ -574,9 +578,9 @@ def on_message(client, userdata, message):
         print(e)
         print(traceback.print_exc())
 
-broker_address = "iot.eclipse.org"
+# broker_address = "iot.eclipse.org"
 #broker_address = "test.mosquitto.org"
-# broker_address = 'broker.hivemq.com'
+broker_address = 'broker.hivemq.com'
 broker_portno = 1883
 client = mqtt.Client()
 
