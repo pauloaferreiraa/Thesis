@@ -11,8 +11,8 @@ from bluepy.btle import UUID, Peripheral, BTLEException
 import paho.mqtt.client as mqtt
 
 # broker_address = "test.mosquitto.org"
-broker_address = "iot.eclipse.org"
-# broker_address = 'broker.hivemq.com'
+# broker_address = "iot.eclipse.org"
+broker_address = 'broker.hivemq.com'
 broker_portno = 1883
 client = mqtt.Client()
 
@@ -78,8 +78,7 @@ def read_data(sensorName,sensorMAC):
             print ("Info, connected and turning sensor %s on!" % sensorName)
             sh = sensor.getCharacteristics(uuid=config_uuid)[0]
             sh.write(sensorOn, withResponse=True)
-            sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
-            sh_hum.write(humSensor, withResponse=True)
+            
             client.publish('client',sensorName)
             
             with tLock:
@@ -92,7 +91,7 @@ def read_data(sensorName,sensorMAC):
             print ("Info, reading values on %s!" % sensorName)
 
             sh = sensor.getCharacteristics(uuid=data_uuid)[0]
-            sh_hum = sensor.getCharacteristics(uuid=hum_uuid)[0]
+            
 
             t_end = time.time() + time_read
 
@@ -104,32 +103,28 @@ def read_data(sensorName,sensorMAC):
             while time.time() <= t_end:
                 time_get_data = time.time() + 0.5
                 data = '['
-                index = 0
-                while index < 6:
-                    index = index + 1
+                while index < 22:
                     rawVals = sh.read()
-                    rawVals_hum = sh_hum.read()
-
+                    # rawVals_hum = sh_hum.read()
+                    index = index + 1
                 
                     #   Movement data: 9 bytes made up of x, y and z for Gyro, Accelerometer, 
                     #   and Magnetometer.  Raw values must be divided by scale
                     (gyroX, gyroY, gyroZ, accX, accY, accZ, magX, magY, magZ) = struct.unpack('<hhhhhhhhh', rawVals)
-                    (temp,hum) = struct.unpack('<hh',rawVals_hum)
+                    # (temp,hum) = struct.unpack('<hh',rawVals_hum)
                     
                     # print(hum)
-                    temp = (temp/65536)*165-40
-                    hum = (hum / 65536)*100
+                    # temp = (temp/65536)*165-40
+                    # hum = (hum / 65536)*100
                     
                     # print('Temperatura & Humidity')
                     # print(temp,hum)
                     scale = 4096.0
 
-                    
-
                     data += '{\"index\": %d, \"x\": %f, \"y\": %f, \"z\": %f, \"sensor\": \"%s\"},' % (index, accX / scale, \
                         accY / scale, accZ / scale, sensorName)
-
                     
+                index = 0
                 data = data[:-1]
                 
                 data += ']'
@@ -152,6 +147,12 @@ def read_data(sensorName,sensorMAC):
             sensor.disconnect()
     finally:
         quit()
+
+def readTH(sensorName):
+    sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
+    sh_hum.write(humSensor, withResponse=True)
+
+    sh_hum = sensor.getCharacteristics(uuid=hum_uuid)[0]
 
 sensorLeft = '24:71:89:BB:FA:00'
 sensorRight = '24:71:89:C0:BC:84'
@@ -197,6 +198,7 @@ print("End of chest thread!!")
 
 # def on_connect(client, userdata, flags, rc):
 #     client.subscribe('frontend')
+#     print('Connected')
 
 # def on_disconnect(client, userdata, rc):
 #     print("Disconnected From Broker")
