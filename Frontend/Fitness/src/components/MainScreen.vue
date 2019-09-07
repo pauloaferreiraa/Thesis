@@ -29,6 +29,7 @@ import { StatusIndicator } from 'vue-status-indicator';
 export default {
     mqtt: {
     'client': function(val) {
+        console.log(val.toString())
         if(val.toString() == 'Left'){
             if(this.sensorLeft == 'negative'){
                 this.sensorLeft = 'positive'
@@ -37,7 +38,28 @@ export default {
                     this.sensorLeft = 'negative'
                 }
             }
-            console.log(this.sensorLeft)
+            
+        }
+        else{
+            if(val.toString() == 'Right'){
+                if(this.sensorLeft == 'negative'){
+                    this.sensorLeft = 'positive'
+                }else{
+                    if(this.sensorLeft == 'positive'){
+                        this.sensorLeft = 'negative'
+                    }
+                }
+            }else{
+                if(val.toString() == 'Right'){
+                    if(this.sensorLeft == 'negative'){
+                        this.sensorLeft = 'positive'
+                }else{
+                    if(this.sensorLeft == 'positive'){
+                        this.sensorLeft = 'negative'
+                    }
+                }
+                }
+            }
         }
     }
     },
@@ -60,6 +82,7 @@ export default {
             this.send = !this.send;
             if(this.send == true){
                 this.$mqtt.publish('frontend', 'start')
+                console.log('published')
             }else{
                  this.$mqtt.publish('frontend', 'finish')
             }
