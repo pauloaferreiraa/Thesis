@@ -28,40 +28,42 @@ import { StatusIndicator } from 'vue-status-indicator';
 
 export default {
     mqtt: {
-    'client': function(val) {
+    'clientLeft': function(val) {
         console.log(val.toString())
-        if(val.toString() == 'Left'){
+        if(val.toString() == 'on'){
             if(this.sensorLeft == 'negative'){
                 this.sensorLeft = 'positive'
-            }else{
-                if(this.sensorLeft == 'positive'){
-                    this.sensorLeft = 'negative'
-                }
-            }
-            
+            }            
+        }else{
+            if(this.sensorLeft == 'positive'){
+                this.sensorLeft = 'negative'
+            } 
         }
-        else{
-            if(val.toString() == 'Right'){
-                if(this.sensorLeft == 'negative'){
-                    this.sensorLeft = 'positive'
-                }else{
-                    if(this.sensorLeft == 'positive'){
-                        this.sensorLeft = 'negative'
-                    }
-                }
-            }else{
-                if(val.toString() == 'Right'){
-                    if(this.sensorLeft == 'negative'){
-                        this.sensorLeft = 'positive'
-                }else{
-                    if(this.sensorLeft == 'positive'){
-                        this.sensorLeft = 'negative'
-                    }
-                }
-                }
-            }
+    },
+    'clientRight': function(val) {
+        console.log(val.toString())
+        if(val.toString() == 'on'){
+            if(this.sensorRight == 'negative'){
+                this.sensorRight = 'positive'
+            }            
+        }else{
+            if(this.sensorRight == 'positive'){
+                this.sensorRight = 'negative'
+            } 
         }
-    }
+    },
+    'clientChest': function(val) {
+        console.log(val.toString())
+        if(val.toString() == 'on'){
+            if(this.sensorChest == 'negative'){
+                this.sensorChest = 'positive'
+            }           
+        }else{
+            if(this.sensorChest == 'positive'){
+                this.sensorChest = 'negative'
+            } 
+        }
+    }    
     },
     name:'MainScreen',
     components:{NavBarComponent,StatusIndicator},
@@ -74,7 +76,9 @@ export default {
         }               
     },
     created: function(){
-        this.$mqtt.subscribe('client')
+        this.$mqtt.subscribe('clientLeft')
+        this.$mqtt.subscribe('clientRight')
+        this.$mqtt.subscribe('clientChest')
         console.log('Subscribed')
     },
     methods: {
