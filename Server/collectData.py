@@ -10,9 +10,11 @@ import struct, sys, traceback, time, threading
 from bluepy.btle import UUID, Peripheral, BTLEException
 import paho.mqtt.client as mqtt
 
-# broker_address = "test.mosquitto.org"
+broker_address = "test.mosquitto.org"
 # broker_address = "iot.eclipse.org"
-broker_address = 'broker.hivemq.com'
+# broker_address = 'broker.hivemq.com'
+# broker_address = 'test.mosca.io'
+
 broker_portno = 1883
 client = mqtt.Client()
 
@@ -49,16 +51,17 @@ sensorOff = struct.pack("BB", 0x00, 0x00)
 humSensor = struct.pack('B',0x01)
 humSensorOff = struct.pack('B',0x00)
 
-if len(sys.argv) != 2:
-  print("Fatal, must pass label and time in seconds: <time> ")
-  quit()
+# if len(sys.argv) != 2:
+#   print("Fatal, must pass label and time in seconds: <time> ")
+#   quit()
 
-time_read = float(sys.argv[1])
+# time_read = float(sys.argv[1])
 
 sensors_connected = 0
 e = threading.Event()
 
 tLock = threading.Lock()
+
 
 def read_data(sensorName,sensorMAC):
     global sensors_connected
@@ -79,7 +82,7 @@ def read_data(sensorName,sensorMAC):
             sh = sensor.getCharacteristics(uuid=config_uuid)[0]
             sh.write(sensorOn, withResponse=True)
             
-            client.publish('client',sensorName)
+            client.publish(('client%s' % sensorName),'on')
             
             with tLock:
                 sensors_connected += 1
@@ -92,16 +95,38 @@ def read_data(sensorName,sensorMAC):
 
             sh = sensor.getCharacteristics(uuid=data_uuid)[0]
             
+            sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
+            sh_hum.write(humSensor, withResponse=True)
 
-            t_end = time.time() + time_read
+            # t_end = time.time() + time_read
 
             index = 0
             beginning = time.time()
 
-            
+            rawVals_hum = sh_hum.read()
 
-            while time.time() <= t_end:
-                time_get_data = time.time() + 0.5
+            (temp,hum) = struct.unpack('<hh',rawVals_hum)
+
+            temp = (temp/65536)*165-40
+            hum = (hum / 65536)*100
+                    
+            print('Temperatura & Humidity')
+            print(temp,hum)
+
+
+            # while time.time() <= t_end:
+            while send != 0:
+                if(sensorName == 'Left' and (time.time() - beginning) > 60 ): #read temperature & humidity every 60s
+                    rawVals_hum = sh_hum.read()
+
+                    (temp,hum) = struct.unpack('<hh',rawVals_hum)
+
+                    temp = (temp/65536)*165-40
+                    hum = (hum / 65536)*100
+                    
+                    print('Temperatura & Humidity')
+                    print(temp,hum)
+                    
                 data = '['
                 while index < 22:
                     rawVals = sh.read()
@@ -148,67 +173,75 @@ def read_data(sensorName,sensorMAC):
     finally:
         quit()
 
-def readTH(sensorName):
-    sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
-    sh_hum.write(humSensor, withResponse=True)
+    
 
-    sh_hum = sensor.getCharacteristics(uuid=hum_uuid)[0]
+    
 
 sensorLeft = '24:71:89:BB:FA:00'
 sensorRight = '24:71:89:C0:BC:84'
 sensorChest = '24:71:89:C1:3C:04'
 
-client.connect(broker_address, broker_portno)
-
-lThread = threading.Thread(target=read_data,args=("Left",sensorLeft,))
-lThread.start()
-rThread = threading.Thread(target=read_data,args=("Right",sensorRight,))
-rThread.start()
-cThread = threading.Thread(target=read_data,args=("Chest",sensorChest,))
-cThread.start()
-
-lThread.join()
-print("End of left thread!!")
-rThread.join()
-print("End of right thread!!")
-cThread.join()
-print("End of chest thread!!")
-
-# def on_message(client, userdata, message):
-#     print('Received message')
-#     global send
-#     if(message.topic == 'frontend'):
-#         if message.payload.decode() == 'start':
-#             send = 1
-#             lThread = threading.Thread(target=read_data,args=("Left",sensorLeft,))
-#             lThread.start()
-#             rThread = threading.Thread(target=read_data,args=("Right",sensorRight,))
-#             rThread.start()
-#             cThread = threading.Thread(target=read_data,args=("Chest",sensorChest,))
-#             cThread.start()
-#         if message.payload.decode() == 'finish':
-#             send = 0
-#             lThread.join()
-#             print("End of left thread!!")
-#             rThread.join()
-#             print("End of right thread!!")
-#             cThread.join()
-#             print("End of chest thread!!")
-
-
-# def on_connect(client, userdata, flags, rc):
-#     client.subscribe('frontend')
-#     print('Connected')
-
-# def on_disconnect(client, userdata, rc):
-#     print("Disconnected From Broker")
-
-
-
-# client.on_connect = on_connect
-# client.on_disconnect = on_disconnect
-# client.on_message = on_message
-
 # client.connect(broker_address, broker_portno)
 
-# client.loop_forever()
+# lThread = threading.Thread(target=read_data,args=("Left",sensorLeft,))
+# lThread.start()
+# rThread = threading.Thread(target=read_data,args=("Right",sensorRight,))
+# rThread.start()
+# cThread = threading.Thread(target=read_data,args=("Chest",sensorChest,))
+# cThread.start()
+
+# lThread.join()
+# print("End of left thread!!")
+# rThread.join()
+# print("End of right thread!!")
+# cThread.join()
+# print("End of chest thread!!")
+
+def on_message(client, userdata, message):
+    print('Received message')
+    global send
+    if(message.topic == 'frontend'):
+        if message.payload.decode() == 'start':
+            send = 1
+            lThread = threading.Thread(target=read_data,args=("Left",sensorLeft,))
+            lThread.start()
+            rThread = threading.Thread(target=read_data,args=("Right",sensorRight,))
+            rThread.start()
+            cThread = threading.Thread(target=read_data,args=("Chest",sensorChest,))
+            cThread.start()
+        if message.payload.decode() == 'finish':
+            send = 0
+            print('Finish')
+            client.publish('clientLeft','off')
+            client.publish('clientRight','off')
+            client.publish('clientChest','off')
+            lThread.join()
+            print("End of left thread!!")
+            
+            rThread.join()
+            print("End of right thread!!")
+            
+            cThread.join()
+            print("End of chest thread!!")
+    elif(message.topic == 'server'):
+        print(message.payload.decode())
+            
+
+
+def on_connect(client, userdata, flags, rc):
+    client.subscribe('frontend')
+    client.subscribe('server')
+    print('Connected')
+
+def on_disconnect(client, userdata, rc):
+    print("Disconnected From Broker")
+
+
+
+client.on_connect = on_connect
+client.on_disconnect = on_disconnect
+client.on_message = on_message
+
+client.connect(broker_address, broker_portno)
+
+client.loop_forever()
