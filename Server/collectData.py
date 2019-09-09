@@ -22,7 +22,7 @@ def TI_UUID(val):
     return UUID("%08X-0451-4000-b000-000000000000" % (0xF0000000+val))
 
 config_uuid = TI_UUID(0xAA82)
-data_uuid = TI_UUID(0xAA81)
+data_uuid = TI_UUID(0xAA11)
 hum_uuid = TI_UUID(0xAA21)
 hum_config = TI_UUID(0xAA22)
 
@@ -62,6 +62,7 @@ e = threading.Event()
 
 tLock = threading.Lock()
 
+
 def read_data(sensorName,sensorMAC):
     global sensors_connected
     try:
@@ -81,7 +82,7 @@ def read_data(sensorName,sensorMAC):
             sh = sensor.getCharacteristics(uuid=config_uuid)[0]
             sh.write(sensorOn, withResponse=True)
             
-            client.publish('client',sensorName)
+            client.publish(('client%s' % sensorName),'on')
             
             with tLock:
                 sensors_connected += 1
@@ -94,17 +95,39 @@ def read_data(sensorName,sensorMAC):
 
             sh = sensor.getCharacteristics(uuid=data_uuid)[0]
             
+            sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
+            sh_hum.write(humSensor, withResponse=True)
 
-            t_end = time.time() + time_read
+            sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
+            # t_end = time.time() + time_read
 
             index = 0
             beginning = time.time()
 
-            
+            rawVals_hum = sh_hum.read()
+
+            (temp,hum) = struct.unpack('<hh',rawVals_hum)
+
+            temp = (temp/65536)*165-40
+            hum = (hum / 65536)*100
+                    
+            print('Temperatura & Humidity')
+            print(temp,hum)
+
 
             # while time.time() <= t_end:
             while send != 0:
-                time_get_data = time.time() + 0.5
+                if(sensorName == 'Left' and (time.time() - beginning) > 60 ): #read temperature & humidity every 60s
+                    rawVals_hum = sh_hum.read()
+
+                    (temp,hum) = struct.unpack('<hh',rawVals_hum)
+
+                    temp = (temp/65536)*165-40
+                    hum = (hum / 65536)*100
+                    
+                    print('Temperatura & Humidity')
+                    print(temp,hum)
+                    
                 data = '['
                 while index < 22:
                     rawVals = sh.read()
@@ -151,11 +174,9 @@ def read_data(sensorName,sensorMAC):
     finally:
         quit()
 
-def readTH(sensorName):
-    sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
-    sh_hum.write(humSensor, withResponse=True)
+    
 
-    sh_hum = sensor.getCharacteristics(uuid=hum_uuid)[0]
+    
 
 sensorLeft = '24:71:89:BB:FA:00'
 sensorRight = '24:71:89:C0:BC:84'
@@ -191,16 +212,26 @@ def on_message(client, userdata, message):
             cThread.start()
         if message.payload.decode() == 'finish':
             send = 0
+            print('Finish')
+            client.publish('clientLeft','off')
+            client.publish('clientRight','off')
+            client.publish('clientChest','off')
             lThread.join()
             print("End of left thread!!")
+            
             rThread.join()
             print("End of right thread!!")
+            
             cThread.join()
             print("End of chest thread!!")
+    elif(message.topic == 'server'):
+        print(message.payload.decode())
+            
 
 
 def on_connect(client, userdata, flags, rc):
     client.subscribe('frontend')
+    client.subscribe('server')
     print('Connected')
 
 def on_disconnect(client, userdata, rc):
