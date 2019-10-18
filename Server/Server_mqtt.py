@@ -12,13 +12,12 @@ warnings.filterwarnings('ignore')
 import traceback, time
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import label_binarize
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, cross_val_score, cross_val_predict
 from sklearn.metrics import confusion_matrix, roc_curve, auc, accuracy_score
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier, VotingClassifier
 from sklearn.neighbors import KNeighborsClassifier
-
 from scipy.stats import mode
 from scipy.fftpack import fft
 import scipy.fftpack
@@ -58,7 +57,7 @@ def read_data():
     data_files = []
         
     #for f_id in range(1,16):
-    f = '../NewDataSet/Merge.csv'
+    f = '../NewDataSet/Dataset.csv'
     # f = '../Teste_dataset.csv'
     data = pd.read_csv(f, 
                         names=['index','xL', 'yL', 'zL', 'xR', 'yR', 'zR', 'xC', 'yC', 'zC', 'label'], 
@@ -104,7 +103,6 @@ def get_advanced_features(data, y, wsize_sec, overlap=.5):
     print('::::START:::: Get Advance Features ::::')
     
     wsize = int(10*wsize_sec)
- 
 
     feats = data[['xL','yL','zL']].rolling(wsize,int(wsize/2)).mean().add_suffix('_mean_l')
     
@@ -186,8 +184,8 @@ def get_advanced_features(data, y, wsize_sec, overlap=.5):
     y = y.iloc[int(wsize*overlap)::int(wsize*overlap)]
     print('::::END:::: Get features Advance::::')
     
-    print(feats.shape)
-    print(data.shape)
+    # print(feats.shape)
+    # print(data.shape)
     return feats, y
 
 def train_model(X, y, est, grid):
@@ -200,35 +198,40 @@ def train_model(X, y, est, grid):
 def eval_model(mod, X_test, y_test, mod_name, plt_roc=True):
     print('::::Eval Model::::')
     y_prob = mod.predict_proba(X_test)
-    y_test_bin = label_binarize(y_test, classes=[1,2,4,5])
+    y_test_bin = label_binarize(y_test, classes=[1,2,3,4,5,6])
     
     y_test_bin_ravel = y_test_bin.ravel()
     y_prob_ravel = y_prob.ravel()
     
     y_test_bin_ravel = y_test_bin_ravel[:len(y_prob_ravel)]
     
+
     fpr, tpr, _ = roc_curve(y_test_bin_ravel, y_prob_ravel)
     roc_auc = auc(fpr, tpr)
     
-    if plt_roc:
-        plt.plot(fpr, tpr, lw=2,
-                 label='average ROC curve (auc=%0.2f), model: %s' % (roc_auc,mod_name))
-        plt.legend(loc="lower right")
+    # if plt_roc:
+    #     plt.plot(fpr, tpr, lw=2,
+    #              label='average ROC curve (auc=%0.2f), model: %s' % (roc_auc,mod_name))
+    #     plt.legend(loc="lower right")
 
-    y_pred = mod.predict(X_test)
+    y_pred = cross_val_predict(mod,X_test,y_test,cv=20)
     score = accuracy_score(y_true=y_test, y_pred=y_pred)
     print('Accuracy score on the test set: %.3f' %score)
+
+    # cross_validation = cross_val_score(mod,X_test,y_test,cv=20)
+    # print('Cross validation %.3f' % cross_validation.mean())
     
     confusion_ma = confusion_matrix(y_true=y_test, y_pred=y_pred)
-    confusion_ma = pd.DataFrame(confusion_ma, index=list(range(1,5)), columns=list(range(1,5)))
+    confusion_ma = pd.DataFrame(confusion_ma, index=list(range(1,6)), columns=list(range(1,6)))
     print('Confusion Matrix...')
     print(confusion_ma)
+
     
     return (roc_auc, score)
 
 
 data = read_data()
-param_range = [0.0001, 0.001, 0.01, 0.1]
+param_range = [100]
 
 
 
@@ -256,15 +259,22 @@ print('Support Vector Machine')
 svm_model, params = train_model(X_train, y_train, 
                     est=SVC(probability=True),
                     grid={'C': param_range, 'gamma': param_range, 'kernel': ['linear']})
-eval_model(svm_model, X_test, y_test, 'SVC')
-              
+roc_auc, acc = eval_model(svm_model, X_test, y_test, 'SVC')
+print(params)
+print('AUC score: %.3f' % acc)           
 
 print('K-Nearest Neighbor')
 knn_model, params = train_model(X_train, y_train, 
                     est=KNeighborsClassifier(),
                     grid={'n_neighbors':[5, 8, 10, 12], 'weights':['uniform', 'distance']})
-eval_model(knn_model, X_test, y_test,'KNN')
+roc_auc, acc = eval_model(knn_model, X_test, y_test,'KNN')
+print('AUC score: %.3f' % acc)
 
+print('Random Forest')
+model, params = train_model(X_train, y_train, 
+                    est=RandomForestClassifier(n_jobs=-1, criterion='entropy'),
+                    grid={'n_estimators':[10,30,100]})
+eval_model(model, X_test, y_test,'Forest')
 
 def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     print('::::START:::: Get Advance Features ::::')
@@ -355,66 +365,6 @@ def get_advanced_features_predict(data, wsize_sec, overlap=.5):
     print('::::END:::: Get features Advance Predict::::')
     return feats
 
-# win_sizes = ['2']#,'3', '5', '7', '10', '13', '15', '20']
-# best_model = RandomForestClassifier(criterion='entropy', n_jobs=-1, n_estimators=50)
-
-# for wsize in win_sizes:
-#     print('Window Size: %s sec' % wsize)
-#     print('Min periodos:', int(wsize)/2)
-#     try:
-#         # disjoint window
-#         print('Disjoint window:')
-#         feats, y = get_simple_features(data, wsize=wsize + 's')
-               
-#         #print(feats)
-#         X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25,
-#                                                             random_state=0, stratify=y)
-        
-        
-#         best_model.fit(X_train, y_train)
-#         roc_auc, acc = eval_model(best_model, X_test, y_test,'%ss - disjoint' %wsize, plt_roc=False)
-#         print('AUC score: %.3f' % roc_auc)
-
-
-#         # overlapping window
-#         print('Overlapping window:')
-#         feats, y = get_advanced_features(data, int(wsize))
-
-#         print('Learning')
-#         print(feats.columns)
-
-#         X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25,
-#                                                             random_state=0, stratify=y)
-        
-#         best_model.fit(X_train, y_train)
-#         roc_auc, acc = eval_model(best_model, X_test, y_test,'%ss - overlapping' %wsize, plt_roc=False)
-
-#         print('AUC score: %.3f' % roc_auc)
-#     except Exception as e:
-#         traceback.print_exc()
-
-#data2 = read_data('all') 
-#feats, y = get_advanced_features(data2, 2)
-#X_train, X_test, y_train, y_test = train_test_split(feats, y, test_size=.25,
-#                                                    random_state=0, stratify=y)
-#X_train.fillna(X_train.mean())
-#best_model.fit(X_train, y_train)
-#eval_model(best_model, X_test, y_test,'2sec - overlapping')
-
-#feats = get_advanced_features_predict(predict_data,2)
-#print('::::FEATS::::::')
-#feats.fillna(feats.mean())
-#print(len(feats))
-
-#print(':::::Predict SVM:::::::')
-#re = svm_model.predict(feats)
-#print(len(re))
-
-#re = knn_model.predict(feats)
-#print(':::::Predict KNN:::::::')
-#print(len(re))
-
-
 
 def predict_post(data):
     
@@ -430,8 +380,8 @@ def predict_post(data):
     pd_data_frame.index = pd.date_range(start='00:00:00', periods=pd_data_frame.shape[0], freq=freq)
 
     feats = get_advanced_features_predict(pd_data_frame,2)
-    print(feats.shape)
-    return (knn_model.predict(feats), svm_model.predict(feats))
+
+    return (knn_model.predict(feats), svm_model.predict(feats),knn_model.predict(feats))
 
 sentData = {}
 
@@ -564,9 +514,11 @@ def on_message(client, userdata, message):
                     # print(sentData)
                     jData = parse_data()
                     # print(jData)
-                    k, s = predict_post(jData)
+                    k, s, r = predict_post(jData)
+                    client.publish('server',k.mean())
                     print(k)
                     print(s)
+                    print(r)
                     
                     sentData = {}
             
@@ -579,8 +531,8 @@ def on_message(client, userdata, message):
         print(traceback.print_exc())
 
 # broker_address = "iot.eclipse.org"
-#broker_address = "test.mosquitto.org"
-broker_address = 'broker.hivemq.com'
+broker_address = "test.mosquitto.org"
+# broker_address = 'broker.hivemq.com'
 broker_portno = 1883
 client = mqtt.Client()
 

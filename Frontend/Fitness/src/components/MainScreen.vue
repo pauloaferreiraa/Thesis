@@ -4,12 +4,31 @@
         <div id='app'>
             <NavBarComponent/>
             <div>
-                <h1>Get data</h1>
-                <toggle-button @change="turnSensorsOn" :value="false" color="#1DB954" :sync="true" :labels="true"/>
-                <div id='sensors'>
-                    <span align="left">Left <status-indicator :status="sensorLeft" /></span>
-                    <span align="center">Right <status-indicator :status="sensorRight" /></span>
-                    <span align="right">Chest <status-indicator :status="sensorChest" /></span>
+                <div class="body">
+                    <h1 id='start'>Start <toggle-button @change="turnSensorsOn" :value="false" color="#1DB954" :sync="true" :labels="true"/></h1>
+                    
+                </div>               
+                
+                <div id='sensors' class="body">
+                    <span class = 'sensors' align="center">Left Hand<status-indicator class='indicators' :status="sensorLeft" /></span>
+                    <span class = 'sensors' align="center">Right Leg<status-indicator :status="sensorRight" /></span>
+                    <span class = 'sensors' align="right">Chest<status-indicator :status="sensorChest" /></span>                 
+                </div>
+
+                <div class="body">
+                    <div align="left" class="body">
+                        <img id="temp" src="../assets/temperature.png">
+                        <span class="thText" >{{temp}}ºC</span>
+                    </div>
+                    
+                    <div align="left" class="body">
+                        <img id="temp"  src="../assets/humidity.png">
+                        <span class="thText">{{Math.abs(hum)}}%</span> 
+                    </div>
+                      
+                </div>
+                <div>
+                    <img id="activity" src="../assets/squat.png">
                 </div>
                 
             </div>
@@ -63,7 +82,13 @@ export default {
                 this.sensorChest = 'negative'
             } 
         }
-    }    
+    },
+    'TempHum': function(val){
+            var s = val.toString().split(' ');
+            this.temp = parseInt(s[0])
+            this.hum = parseInt(s[1])
+            console.log(val.toString())
+        }    
     },
     name:'MainScreen',
     components:{NavBarComponent,StatusIndicator},
@@ -73,12 +98,15 @@ export default {
             sensorLeft: "negative",
             sensorRight: "negative",
             sensorChest: "negative",
+            temp: 0.0,
+            hum: 0.0
         }               
     },
     created: function(){
         this.$mqtt.subscribe('clientLeft')
         this.$mqtt.subscribe('clientRight')
         this.$mqtt.subscribe('clientChest')
+        this.$mqtt.subscribe('TempHum')
         console.log('Subscribed')
     },
     methods: {
@@ -100,15 +128,56 @@ export default {
 </script>
 
 <style scoped>
+
+    #start{
+        float: left;
+        color: #05386B;
+    }
+
     #main{
-        background-color: #535353;
+        background-color: #EEAD37;
         position: absolute;
         top: 0; right: 0; bottom: 0; left: 0;
     }
 
     span{
-        color: white;
+        color: #EDF5E1;
         font-size:45px;
         margin:50px;
+        size: 5px;
     }
+
+    h1{
+        color:#EDF5E1;
+    }
+
+    .sensors{
+        font-size: 20px;
+    }
+
+    #temp{
+
+        width:5%;
+    }
+
+    #imgSensor{
+        width:10%;
+    }
+
+    .thText{
+        font-size: 20px;
+        color: #EDF5E1;
+        width: 5%;
+    }
+
+    .body{
+        justify-content: space-between;
+        padding: 1%;
+    }
+    
+    #activity{
+        width:20%;
+    }
+    
 </style>
+

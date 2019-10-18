@@ -22,7 +22,7 @@ def TI_UUID(val):
     return UUID("%08X-0451-4000-b000-000000000000" % (0xF0000000+val))
 
 config_uuid = TI_UUID(0xAA82)
-data_uuid = TI_UUID(0xAA11)
+data_uuid = TI_UUID(0xAA81)
 hum_uuid = TI_UUID(0xAA21)
 hum_config = TI_UUID(0xAA22)
 
@@ -95,68 +95,65 @@ def read_data(sensorName,sensorMAC):
 
             sh = sensor.getCharacteristics(uuid=data_uuid)[0]
             
-            sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
-            sh_hum.write(humSensor, withResponse=True)
+            if(sensorName == 'Left'):
+                print('Temp')
+                sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
+                sh_hum.write(humSensor, withResponse=True)
 
-            sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
-            # t_end = time.time() + time_read
+                sh_hum = sensor.getCharacteristics(uuid=hum_uuid)[0]
+                # t_end = time.time() + time_read
+
+                rawVals_hum = sh_hum.read()
+                
+                (temp,hum) = struct.unpack('hh',rawVals_hum )
+
+                temp = (temp/65536)*165-40
+                hum = (hum / 65536)*100
+
+                client.publish('TempHum','%d %d' % (temp,hum))
+                print('Temperatura & Humidity')
+                print(temp,hum)
 
             index = 0
             beginning = time.time()
-
-            rawVals_hum = sh_hum.read()
-
-            (temp,hum) = struct.unpack('<hh',rawVals_hum)
-
-            temp = (temp/65536)*165-40
-            hum = (hum / 65536)*100
-                    
-            print('Temperatura & Humidity')
-            print(temp,hum)
-
-
-            # while time.time() <= t_end:
-            while send != 0:
-                if(sensorName == 'Left' and (time.time() - beginning) > 60 ): #read temperature & humidity every 60s
-                    rawVals_hum = sh_hum.read()
-
-                    (temp,hum) = struct.unpack('<hh',rawVals_hum)
-
-                    temp = (temp/65536)*165-40
-                    hum = (hum / 65536)*100
-                    
-                    print('Temperatura & Humidity')
-                    print(temp,hum)
-                    
+            r = 0
+            while send != 0:                    
                 data = '['
-                while index < 22:
+                while index < 20:
                     rawVals = sh.read()
-                    # rawVals_hum = sh_hum.read()
+                        # rawVals_hum = sh_hum.read()
                     index = index + 1
-                
-                    #   Movement data: 9 bytes made up of x, y and z for Gyro, Accelerometer, 
-                    #   and Magnetometer.  Raw values must be divided by scale
+                    
+                        #   Movement data: 9 bytes made up of x, y and z for Gyro, Accelerometer, 
+                        #   and Magnetometer.  Raw values must be divided by scale
                     (gyroX, gyroY, gyroZ, accX, accY, accZ, magX, magY, magZ) = struct.unpack('<hhhhhhhhh', rawVals)
-                    # (temp,hum) = struct.unpack('<hh',rawVals_hum)
-                    
-                    # print(hum)
-                    # temp = (temp/65536)*165-40
-                    # hum = (hum / 65536)*100
-                    
-                    # print('Temperatura & Humidity')
-                    # print(temp,hum)
+                        
                     scale = 4096.0
 
                     data += '{\"index\": %d, \"x\": %f, \"y\": %f, \"z\": %f, \"sensor\": \"%s\"},' % (index, accX / scale, \
-                        accY / scale, accZ / scale, sensorName)
-                    
+                            accY / scale, accZ / scale, sensorName)
                 index = 0
                 data = data[:-1]
-                
+                    
                 data += ']'
 
+                if(sensorName == 'Left'):
+                        print(data)
+
                 client.publish(topic = sensorName, payload = data)
-            
+
+                if(sensorName == 'Left' and (time.time() - beginning) > 60 ): #read temperature & humidity every 60s
+                    rawVals_hum = sh_hum.read()
+
+                    (temp,hum) = struct.unpack('hh',rawVals_hum )
+
+                    temp = (temp/65536)*165-40
+                    hum = (hum / 65536)*100
+                        
+                    print('Temperatura & Humidity')
+                    print(temp,hum)
+                    client.publish('TempHum','%d %d' % (temp,hum))
+                    beginning = time.time()
             print ("Info, turning sensor %s off!" % sensorName)
             sh = sensor.getCharacteristics(uuid=config_uuid)[0]
             sh.write(sensorOff, withResponse=True)

@@ -1,5 +1,5 @@
 <template>
-    <b-navbar toggleable="md" type="dark" variant="primary"  fixed="top">
+    <b-navbar toggleable="md" variant="primary"  fixed="top">
 
     <b-navbar-toggle target="nav_collapse"></b-navbar-toggle>
 
@@ -23,4 +23,9 @@ export default {
 </script>
 
 <style>
+
+.navbar-dark{
+  color: #05386B;
+}
+
 </style>
