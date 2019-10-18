@@ -10,9 +10,11 @@ import struct, sys, traceback, time, threading
 from bluepy.btle import UUID, Peripheral, BTLEException
 import paho.mqtt.client as mqtt
 
-# broker_address = "test.mosquitto.org"
-broker_address = "iot.eclipse.org"
+broker_address = "test.mosquitto.org"
+# broker_address = "iot.eclipse.org"
 # broker_address = 'broker.hivemq.com'
+# broker_address = 'test.mosca.io'
+
 broker_portno = 1883
 client = mqtt.Client()
 
@@ -28,6 +30,7 @@ dataL = {}
 dataR = {}
 dataC = {}
 send = 0 # When send == 0 data is not sent, if send == 1 data is sent to the server
+
 
 
 # Bit settings to turn on individual movement sensors
@@ -48,12 +51,17 @@ sensorOff = struct.pack("BB", 0x00, 0x00)
 humSensor = struct.pack('B',0x01)
 humSensorOff = struct.pack('B',0x00)
 
+# if len(sys.argv) != 2:
+#   print("Fatal, must pass label and time in seconds: <time> ")
+#   quit()
 
+# time_read = float(sys.argv[1])
 
 sensors_connected = 0
 e = threading.Event()
 
 tLock = threading.Lock()
+
 
 def read_data(sensorName,sensorMAC):
     global sensors_connected
@@ -73,9 +81,8 @@ def read_data(sensorName,sensorMAC):
             print ("Info, connected and turning sensor %s on!" % sensorName)
             sh = sensor.getCharacteristics(uuid=config_uuid)[0]
             sh.write(sensorOn, withResponse=True)
-            sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
-            sh_hum.write(humSensor, withResponse=True)
-            client.publish('client',sensorName)
+            
+            client.publish(('client%s' % sensorName),'on')
             
             with tLock:
                 sensors_connected += 1
@@ -87,45 +94,66 @@ def read_data(sensorName,sensorMAC):
             print ("Info, reading values on %s!" % sensorName)
 
             sh = sensor.getCharacteristics(uuid=data_uuid)[0]
-            sh_hum = sensor.getCharacteristics(uuid=hum_uuid)[0]
+            
+            if(sensorName == 'Left'):
+                print('Temp')
+                sh_hum = sensor.getCharacteristics(uuid=hum_config)[0]
+                sh_hum.write(humSensor, withResponse=True)
 
-            index = 0            
+                sh_hum = sensor.getCharacteristics(uuid=hum_uuid)[0]
+                # t_end = time.time() + time_read
 
-            while send == 1:
+                rawVals_hum = sh_hum.read()
                 
+                (temp,hum) = struct.unpack('hh',rawVals_hum )
+
+                temp = (temp/65536)*165-40
+                hum = (hum / 65536)*100
+
+                client.publish('TempHum','%d %d' % (temp,hum))
+                print('Temperatura & Humidity')
+                print(temp,hum)
+
+            index = 0
+            beginning = time.time()
+            r = 0
+            while send != 0:                    
                 data = '['
-                index = 0
-                while index < 6:
-                    index = index + 1
+                while index < 20:
                     rawVals = sh.read()
-                    rawVals_hum = sh_hum.read()
-
-                
-                    #   Movement data: 9 bytes made up of x, y and z for Gyro, Accelerometer, 
-                    #   and Magnetometer.  Raw values must be divided by scale
+                        # rawVals_hum = sh_hum.read()
+                    index = index + 1
+                    
+                        #   Movement data: 9 bytes made up of x, y and z for Gyro, Accelerometer, 
+                        #   and Magnetometer.  Raw values must be divided by scale
                     (gyroX, gyroY, gyroZ, accX, accY, accZ, magX, magY, magZ) = struct.unpack('<hhhhhhhhh', rawVals)
-                    (temp,hum) = struct.unpack('<hh',rawVals_hum)
-                    
-                    print(hum)
-                    temp = (temp/65536)*165-40
-                    hum = (hum / 65536)*100
-                    
-                    # print('Temperatura & Humidity')
-                    # print(temp,hum)
+
                     scale = 4096.0
 
-                    
-
                     data += '{\"index\": %d, \"x\": %f, \"y\": %f, \"z\": %f, \"sensor\": \"%s\"},' % (index, accX / scale, \
-                        accY / scale, accZ / scale, sensorName)
-
-                    
+                            accY / scale, accZ / scale, sensorName)
+                index = 0
                 data = data[:-1]
-                
+                    
                 data += ']'
 
+                if(sensorName == 'Left'):
+                        print(data)
+
                 client.publish(topic = sensorName, payload = data)
-            
+
+                if(sensorName == 'Left' and (time.time() - beginning) > 60 ): #read temperature & humidity every 60s
+                    rawVals_hum = sh_hum.read()
+
+                    (temp,hum) = struct.unpack('hh',rawVals_hum )
+
+                    temp = (temp/65536)*165-40
+                    hum = (hum / 65536)*100
+                        
+                    print('Temperatura & Humidity')
+                    print(temp,hum)
+                    client.publish('TempHum','%d %d' % (temp,hum))
+                    beginning = time.time()
             print ("Info, turning sensor %s off!" % sensorName)
             sh = sensor.getCharacteristics(uuid=config_uuid)[0]
             sh.write(sensorOff, withResponse=True)
@@ -143,11 +171,29 @@ def read_data(sensorName,sensorMAC):
     finally:
         quit()
 
+    
+
+    
+
 sensorLeft = '24:71:89:BB:FA:00'
 sensorRight = '24:71:89:C0:BC:84'
 sensorChest = '24:71:89:C1:3C:04'
 
-client.connect(broker_address, broker_portno)
+# client.connect(broker_address, broker_portno)
+
+# lThread = threading.Thread(target=read_data,args=("Left",sensorLeft,))
+# lThread.start()
+# rThread = threading.Thread(target=read_data,args=("Right",sensorRight,))
+# rThread.start()
+# cThread = threading.Thread(target=read_data,args=("Chest",sensorChest,))
+# cThread.start()
+
+# lThread.join()
+# print("End of left thread!!")
+# rThread.join()
+# print("End of right thread!!")
+# cThread.join()
+# print("End of chest thread!!")
 
 def on_message(client, userdata, message):
     print('Received message')
@@ -163,16 +209,27 @@ def on_message(client, userdata, message):
             cThread.start()
         if message.payload.decode() == 'finish':
             send = 0
+            print('Finish')
+            client.publish('clientLeft','off')
+            client.publish('clientRight','off')
+            client.publish('clientChest','off')
             lThread.join()
             print("End of left thread!!")
+            
             rThread.join()
             print("End of right thread!!")
+            
             cThread.join()
             print("End of chest thread!!")
+    elif(message.topic == 'server'):
+        print(message.payload.decode())
+            
 
 
 def on_connect(client, userdata, flags, rc):
     client.subscribe('frontend')
+    client.subscribe('server')
+    print('Connected')
 
 def on_disconnect(client, userdata, rc):
     print("Disconnected From Broker")

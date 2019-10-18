@@ -12,7 +12,7 @@ import Msg from 'vue-message'
 Vue.use(Msg, {
     text: 'Hello world', duration: 3000, background: 'rgb(30,215,96)'
 })
-Vue.use(VueMqtt, 'ws://iot.eclipse.org/ws'); 
+Vue.use(VueMqtt, 'wss://test.mosquitto.org:8081'); 
 Vue.use(ToggleButton)
 Vue.use(BootstrapVue)
 
